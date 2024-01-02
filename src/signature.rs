@@ -29,7 +29,7 @@ impl HaarSignature {
 }
 
 trait From {
-    async fn from(filecontent: DynamicImage) -> Self;
+    fn from(filecontent: DynamicImage) -> Self;
 }
 
 //impl From<String> for HaarSignature {
@@ -47,19 +47,18 @@ trait From {
 
 impl From for HaarSignature {
     #[inline]
-    async fn from(filecontent: DynamicImage) -> Self {
-        let filecontent = filecontent.resize_exact(128, 128, FilterType::Triangle);
-        let (a, b, c) = haar::transform_char(filecontent).await;
+    fn from(filecontent: DynamicImage) -> Self {
+        let (a, b, c) = haar::transform_char(filecontent);
         println!("avglf: {:?} {:?} {:?}", a[0], b[0], c[0]);
-        //let (avg, si) = haar::calc_haar(a, b, c).await;
+        //let (avg, si) = haar::calc_haar(a, b, c);
         //HaarSignature { avglf: avg, sig: si }
         HaarSignature::new()
     }
 }
 
-pub async fn haarsignature_from_file(filecontent: DynamicImage) -> HaarSignature {
+pub fn haarsignature_from_file(filecontent: DynamicImage) -> HaarSignature {
     let filecontent = filecontent.resize_exact(128, 128, FilterType::Triangle);
-    let (a, b, c) = haar::transform_char(filecontent).await;
+    let (a, b, c) = haar::transform_char(filecontent);
     println!("avglf: {:?} {:?} {:?}", a[0], b[0], c[0]);
     //let (avg, si) = haar::calc_haar(a, b, c).await;
     //HaarSignature { avglf: avg, sig: si }
@@ -78,3 +77,5 @@ pub async fn haarsignature_from_file(filecontent: DynamicImage) -> HaarSignature
 //}
 
 // to json
+
+

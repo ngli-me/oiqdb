@@ -25,7 +25,7 @@ OIQDB is distributed under the terms of the GNU General Public License, followin
 
 * https://grail.cs.washington.edu/projects/query
 * https://grail.cs.washington.edu/projects/query/mrquery.pdf
-* https://cliutils.gitlab.io/modern-cmake/
-* https://riptutorial.com/cmake
-* https://github.com/yhirose/cpp-httplib
 * https://hub.docker.com/repository/docker/evazion/iqdb
+* https://unix4lyfe.org/haar/
+
+Thanks to the Rust community for providing documentation and tutorials, the authors of the original algorithm, implementations and forks.

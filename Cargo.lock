@@ -864,6 +864,7 @@ dependencies = [
  "hex",
  "image",
  "itertools",
+ "num-traits",
  "priority-queue",
  "serde_json",
  "sqlx",
