@@ -1,5 +1,4 @@
 use std::fmt;
-//use hex::decode_to_slice;
 use image::{DynamicImage};
 use image::imageops::FilterType;
 
@@ -14,7 +13,7 @@ pub struct HaarSignature {
 impl HaarSignature {
     fn new() -> Self {
         Self {
-            avglf: [0.0; 3],
+            avglf: [0.0; haar::NUM_CHANNELS],
             sig:   Default::default(),
         }
     }
@@ -28,42 +27,20 @@ impl HaarSignature {
     }
 }
 
-trait From {
-    fn from(filecontent: DynamicImage) -> Self;
-}
-
-//impl From<String> for HaarSignature {
-//    #[inline]
-//    fn from(hash: String) -> Self {
-//        //if hash.size() != 5 + 2*size_of
-//
-//        let mut haar: HaarSignature;
-//        let mut s = [0i16; 3 * haar::NUM_COEFS];
-//        let mut p: String = hash[5..].to_string();
-//        //decode_to_slice(p, &mut s as &mut [i16]);
-//        haar
-//    }
-//}
-
-impl From for HaarSignature {
+impl From<DynamicImage> for HaarSignature {
     #[inline]
     fn from(filecontent: DynamicImage) -> Self {
+        let filecontent = filecontent.resize_exact(128, 128, FilterType::Triangle);
+        // Resize image and conver to YIQ
         let (a, b, c) = haar::transform_char(filecontent);
-        println!("avglf: {:?} {:?} {:?}", a[0], b[0], c[0]);
-        //let (avg, si) = haar::calc_haar(a, b, c);
-        //HaarSignature { avglf: avg, sig: si }
-        HaarSignature::new()
+        let (avglf, sig): (haar::LuminT, haar::SignatureT) = haar::calc_haar(a,b,c);
+        HaarSignature {
+            avglf,
+            sig,
+        }
     }
 }
 
-pub fn haarsignature_from_file(filecontent: DynamicImage) -> HaarSignature {
-    let filecontent = filecontent.resize_exact(128, 128, FilterType::Triangle);
-    let (a, b, c) = haar::transform_char(filecontent);
-    println!("avglf: {:?} {:?} {:?}", a[0], b[0], c[0]);
-    //let (avg, si) = haar::calc_haar(a, b, c).await;
-    //HaarSignature { avglf: avg, sig: si }
-    HaarSignature::new()
-}
 //impl fmt::Display for HaarSignature {
 //    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 //        let mut str = "";

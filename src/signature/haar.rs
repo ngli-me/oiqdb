@@ -1,39 +1,21 @@
 use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgba};
 use image::imageops::FilterType;
 use num_traits::NumCast;
-use std::cmp::Ordering;
+use itertools::izip;
 
 pub const NUM_PIXELS: usize = 128;
 pub const NUM_PIXELS_SQUARED: usize = NUM_PIXELS.pow(2);
+
 pub const NUM_COEFS: usize = 40;
-const GD_ALPHA_MAX: u8 = 127;
+// Assuming RGB
+pub const NUM_CHANNELS: usize = 3;
 
-struct ValStruct {
-    v: f32,
-}
-
-impl PartialOrd for ValStruct {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let v1 = f32::abs(self.v);
-        let v2 = f32::abs(other.v);
-        v1.partial_cmp(&v2)
-    }
-}
-
-impl PartialEq for ValStruct {
-    fn eq(&self, other: &Self) -> bool {
-        let v1 = f32::abs(self.v);
-        let v2 = f32::abs(other.v);
-        v1 == v2
-    }
-}
-
-pub type LuminT = [f32; 3];
-pub struct SignatureT ([i16; 3 * NUM_COEFS]);
+pub type LuminT = [f32; NUM_CHANNELS];
+pub struct SignatureT (Vec<[i16; NUM_COEFS]>);
 
 impl Default for SignatureT {
     fn default() -> Self {
-        SignatureT([0; 3 * NUM_COEFS])
+        SignatureT([[0; NUM_COEFS]; 3].to_vec())
     }
 }
 
@@ -144,28 +126,19 @@ fn rgb_to_yiq_conversion(img: DynamicImage) ->
 
 // Find the NUM_COEFS largest numbers in cdata[] (in magnitude that is)
 // and store their indices in sig[].
-fn get_m_largest(mut cdata: Vec<f32>) -> Vec<i16> {
-    let mut cnt: usize = 0;
-    let i: i16 = 0;
-    let mut vq: Vec<ValStruct> = Vec::new();
+fn get_m_largest(mut cdata: Vec<f32>) -> [i16; NUM_COEFS] {
+    cdata.sort_by(
+        |a, b|
+        ((a.abs()).partial_cmp(&(b.abs())).unwrap()).reverse());
 
-    // Skip i = 0, since it goes into avglf
-    for val in cdata.iter_mut().skip(1) {
-        vq.push(ValStruct { v: *val });
+    let mut sig: [i16; NUM_COEFS] = [0; NUM_COEFS];
+    for (val, s) in izip!(cdata.iter(), sig.iter_mut()) {
+        *s = val.floor() as i16;
     }
+    sig.sort();
+    println!("sig: {:?}", sig);
 
-    vq.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-    // Set sorted size to NUM_COEFS, discard others
-    let vq = &vq[..NUM_COEFS];
-
-    // The index is positive if the coefficient was positive; the index is
-    // negative if the coefficient was negative.
-    for val in vq {
-
-    }
-
-    vec![0; NUM_PIXELS]
+    sig
 }
 
 // Determines a total of NUM_COEFS positions in the image that have the
@@ -173,46 +146,36 @@ fn get_m_largest(mut cdata: Vec<f32>) -> Vec<i16> {
 // coordinates in sig1, sig2, and sig3. avgl are the [0,0] values.
 // The order of occurrence of the coordinates in sig doesn't matter.
 // Complexity is 3 x NUM_PIXELS^2 x 2log(NUM_COEFS).
-pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) {//->
-    //(LuminT, SignatureT) {
-    let avglf: Vec<f32> = vec![cdata1[0], cdata2[0], cdata3[0]];
+pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) ->
+    (LuminT, SignatureT) {
+    let avglf: [f32; NUM_CHANNELS] = [cdata1[0], cdata2[0], cdata3[0]];
 
     // Color channel 1
-    let mut c: Vec<i16>  = get_m_largest(cdata1);
+    // Skip i=0, since it goes into avglf
+    let sig1: [i16; NUM_COEFS]  = get_m_largest(cdata1[1..].to_vec());
 
     // Color channel 2
-    //c.append(get_m_largest(cdata2));
+    let sig2: [i16; NUM_COEFS] = get_m_largest(cdata2[1..].to_vec());
 
     // Color channel 3
-    //c.append(get_m_largest(cdata2));
+    let sig3: [i16; NUM_COEFS] = get_m_largest(cdata2[1..].to_vec());
 
-    //(avglf, SignatureT{[i16; 128 * 3]})
+    (avglf, SignatureT([sig1, sig2, sig3].to_vec()))
 }
 
 /**
- * Function: gdImageCopyResampled
- *
- * Copy a resampled area from an image to another image
+ * Resample an image.
  *
  * If the source and destination area differ in size, the area will be resized
- * using bilinear interpolation for truecolor images, and nearest-neighbor
- * interpolation for palette images.
+ * using bilinear interpolation for truecolor images.
  *
  * Parameters:
  *   dst  - The destination image.
  *   src  - The source image.
- *   dstX - The x-coordinate of the upper left corner to copy to.
- *   dstY - The y-coordinate of the upper left corner to copy to.
- *   srcX - The x-coordinate of the upper left corner to copy from.
- *   srcY - The y-coordinate of the upper left corner to copy from.
  *   dstW - The width of the area to copy to.
  *   dstH - The height of the area to copy to.
  *   srcW - The width of the area to copy from.
  *   srcH - The height of the area to copy from.
- *
- * See also:
- *   - <gdImageCopyResized>
- *   - <gdImageScale>
  */
 pub fn gd_image_resample<I: GenericImageView<Pixel=Rgba<u8>>>(
     src: &I,
@@ -310,7 +273,7 @@ where
             red   = if red   >= 255.5 { 255.0 } else { red   + 0.5 };
             blue  = if blue  >= 255.5 { 255.0 } else { blue  + 0.5 };
             green = if green >= 255.5 { 255.0 } else { green + 0.5 };
-            let alpha = if alpha >= GD_ALPHA_MAX as f32 + 0.5 { GD_ALPHA_MAX as f32 } else { alpha + 0.5 };
+            let alpha = if alpha >= 127.0 + 0.5 { 127.0 } else { alpha + 0.5 };
             let t = Rgba([
                 red   as u8,
                 green as u8,
@@ -330,9 +293,23 @@ mod test {
     use std::io::{self, BufRead};
     use std::path::Path;
     use image::imageops::FilterType;
-    use itertools::izip;
 
-    #[test]
+    //#[test]
+    fn read() {
+        let img = image::open("files/peppers.jpg").unwrap();
+        let r_pixels = read_i32_vector_file("files/initial_r_peppers".to_string());
+        let g_pixels = read_i32_vector_file("files/initial_g_peppers".to_string());
+        let b_pixels = read_i32_vector_file("files/initial_b_peppers".to_string());
+        let a_pixels = read_i32_vector_file("files/initial_a_peppers".to_string());
+
+        for (r, g, b, a, pix) in izip!(r_pixels, g_pixels, b_pixels, a_pixels, img.pixels()) {
+            println!("{}, {}", pix.0, pix.1);
+            assert_eq!(r, pix.2[0] as i32);
+        }
+
+    }
+
+    //#[test]
     fn compare_resize() {
         let img = image::open("files/peppers.jpg").unwrap();
         let filecontent = img.resize_exact(128, 128, FilterType::Triangle);
@@ -381,6 +358,27 @@ mod test {
         compare_vals(y, a);
         compare_vals(i, b);
         compare_vals(q, c);
+    }
+
+    //#[test]
+    fn validate_gd_image_resample() {
+        println!("testintesitjsedfskjdfh");
+        let ground_truth = image::open("test3.jpg").unwrap();
+        let img = image::open("files/peppers.jpg").unwrap();
+
+        let img = gd_image_resample(&img, 128, 128);
+
+        for (p1, p2) in izip!(ground_truth.pixels(), img.enumerate_pixels()) {
+            let r: u8 = p1.2[0].into();
+            let g: u8 = p1.2[1].into();
+            let b: u8 = p1.2[2].into();
+            //let a: u8 = p1.2[3].into();
+
+            assert_eq!(r, p2.2[0]);
+            assert_eq!(g, p2.2[1]);
+            assert_eq!(b, p2.2[2]);
+            //assert_eq!(a, p2.2[3]);
+        }
     }
 
     fn read_i32_vector_file(filename: String) -> Vec<i32> {
