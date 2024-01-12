@@ -1,20 +1,19 @@
-use std::fmt;
-use image::{DynamicImage};
 use image::imageops::FilterType;
+use image::DynamicImage;
 
 mod haar;
 
 #[derive(Default)]
 pub struct HaarSignature {
     avglf: haar::LuminT,
-    sig:   haar::SignatureT,
+    sig: haar::SignatureT,
 }
 
 impl HaarSignature {
     fn new() -> Self {
         Self {
             avglf: [0.0; haar::NUM_CHANNELS],
-            sig:   Default::default(),
+            sig: Default::default(),
         }
     }
 
@@ -23,7 +22,11 @@ impl HaarSignature {
     }
 
     fn num_colors(&self) -> i32 {
-        if self.is_grayscale() { 1 } else { 3 }
+        if self.is_grayscale() {
+            1
+        } else {
+            3
+        }
     }
 }
 
@@ -33,11 +36,8 @@ impl From<DynamicImage> for HaarSignature {
         let filecontent = filecontent.resize_exact(128, 128, FilterType::Triangle);
         // Resize image and conver to YIQ
         let (a, b, c) = haar::transform_char(filecontent);
-        let (avglf, sig): (haar::LuminT, haar::SignatureT) = haar::calc_haar(a,b,c);
-        HaarSignature {
-            avglf,
-            sig,
-        }
+        let (avglf, sig): (haar::LuminT, haar::SignatureT) = haar::calc_haar(a, b, c);
+        HaarSignature { avglf, sig }
     }
 }
 
@@ -54,5 +54,3 @@ impl From<DynamicImage> for HaarSignature {
 //}
 
 // to json
-
-

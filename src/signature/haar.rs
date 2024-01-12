@@ -1,7 +1,7 @@
-use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgba};
 use image::imageops::FilterType;
-use num_traits::NumCast;
+use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgba};
 use itertools::izip;
+use num_traits::NumCast;
 
 pub const NUM_PIXELS: usize = 128;
 pub const NUM_PIXELS_SQUARED: usize = NUM_PIXELS.pow(2);
@@ -11,7 +11,7 @@ pub const NUM_COEFS: usize = 40;
 pub const NUM_CHANNELS: usize = 3;
 
 pub type LuminT = [f32; NUM_CHANNELS];
-pub struct SignatureT (Vec<[i16; NUM_COEFS]>);
+pub struct SignatureT(Vec<[i16; NUM_COEFS]>);
 
 impl Default for SignatureT {
     fn default() -> Self {
@@ -19,9 +19,7 @@ impl Default for SignatureT {
     }
 }
 
-pub fn transform_char(img: DynamicImage) ->
-    (Vec<f32>, Vec<f32>, Vec<f32>) {
-
+pub fn transform_char(img: DynamicImage) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
     let img = img.resize_exact(128, 128, FilterType::Triangle);
     let (mut a, mut b, mut c) = rgb_to_yiq_conversion(img);
     haar_2d(&mut a);
@@ -50,10 +48,10 @@ fn haar_2d(a: &mut Vec<f32>) {
             let mut t: Vec<f32> = vec![0.0; h1];
             while k < h1 {
                 let j21: usize = j2 + 1;
-                t[k]  = (a[j2] - a[j21]) * c;
+                t[k] = (a[j2] - a[j21]) * c;
                 a[j1] = a[j2] + a[j21];
 
-                k  += 1;
+                k += 1;
                 j1 += 1;
                 j2 += 2;
             }
@@ -80,10 +78,10 @@ fn haar_2d(a: &mut Vec<f32>) {
             let mut t: Vec<f32> = vec![0.0; h1];
             while k < h1 {
                 let j21: usize = j2 + NUM_PIXELS;
-                t[k]  = (a[j2] - a[j21]) * c;
+                t[k] = (a[j2] - a[j21]) * c;
                 a[j1] = a[j2] + a[j21];
 
-                k  += 1;
+                k += 1;
                 j1 += NUM_PIXELS;
                 j2 += NUM_PIXELS * 2;
             }
@@ -101,9 +99,7 @@ fn haar_2d(a: &mut Vec<f32>) {
     }
 }
 
-fn rgb_to_yiq_conversion(img: DynamicImage) ->
-    (Vec<f32>, Vec<f32>, Vec<f32>) {
-
+fn rgb_to_yiq_conversion(img: DynamicImage) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
     let mut cdata1: Vec<f32> = Vec::with_capacity(128 * 128);
     let mut cdata2: Vec<f32> = Vec::with_capacity(128 * 128);
     let mut cdata3: Vec<f32> = Vec::with_capacity(128 * 128);
@@ -127,9 +123,7 @@ fn rgb_to_yiq_conversion(img: DynamicImage) ->
 // Find the NUM_COEFS largest numbers in cdata[] (in magnitude that is)
 // and store their indices in sig[].
 fn get_m_largest(mut cdata: Vec<f32>) -> [i16; NUM_COEFS] {
-    cdata.sort_by(
-        |a, b|
-        ((a.abs()).partial_cmp(&(b.abs())).unwrap()).reverse());
+    cdata.sort_by(|a, b| ((a.abs()).partial_cmp(&(b.abs())).unwrap()).reverse());
 
     let mut sig: [i16; NUM_COEFS] = [0; NUM_COEFS];
     for (val, s) in izip!(cdata.iter(), sig.iter_mut()) {
@@ -146,13 +140,12 @@ fn get_m_largest(mut cdata: Vec<f32>) -> [i16; NUM_COEFS] {
 // coordinates in sig1, sig2, and sig3. avgl are the [0,0] values.
 // The order of occurrence of the coordinates in sig doesn't matter.
 // Complexity is 3 x NUM_PIXELS^2 x 2log(NUM_COEFS).
-pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) ->
-    (LuminT, SignatureT) {
+pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) -> (LuminT, SignatureT) {
     let avglf: [f32; NUM_CHANNELS] = [cdata1[0], cdata2[0], cdata3[0]];
 
     // Color channel 1
     // Skip i=0, since it goes into avglf
-    let sig1: [i16; NUM_COEFS]  = get_m_largest(cdata1[1..].to_vec());
+    let sig1: [i16; NUM_COEFS] = get_m_largest(cdata1[1..].to_vec());
 
     // Color channel 2
     let sig2: [i16; NUM_COEFS] = get_m_largest(cdata2[1..].to_vec());
@@ -177,7 +170,7 @@ pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) ->
  *   srcW - The width of the area to copy from.
  *   srcH - The height of the area to copy from.
  */
-pub fn gd_image_resample<I: GenericImageView<Pixel=Rgba<u8>>>(
+pub fn gd_image_resample<I: GenericImageView<Pixel = Rgba<u8>>>(
     src: &I,
     dst_w: u32,
     dst_h: u32,
@@ -195,7 +188,8 @@ where
             let (sy1, sy2, mut sx1, mut sx2): (f32, f32, f32, f32);
             let (mut sx, mut sy): (f32, f32);
             let mut s_pixels: f32 = 0.0;
-            let (mut red, mut green, mut blue, mut alpha): (f32, f32, f32, f32) = (0.0, 0.0, 0.0, 0.0);
+            let (mut red, mut green, mut blue, mut alpha): (f32, f32, f32, f32) =
+                (0.0, 0.0, 0.0, 0.0);
             let mut alpha_factor: f32;
             let (mut alpha_sum, mut contrib_sum): (f32, f32) = (0.0, 0.0);
             sy1 = (y as f32) * (src_h as f32) / (dst_h as f32);
@@ -243,9 +237,9 @@ where
                     let p4: f32 = NumCast::from(p4).unwrap();
 
                     alpha_factor = p_contribution;
-                    red   += p1 * alpha_factor;
+                    red += p1 * alpha_factor;
                     green += p2 * alpha_factor;
-                    blue  += p3 * alpha_factor;
+                    blue += p3 * alpha_factor;
                     alpha += p4 * alpha_factor;
                     alpha_sum += alpha_factor;
                     contrib_sum += p_contribution;
@@ -265,21 +259,20 @@ where
                 if contrib_sum != 0.0 {
                     alpha_sum /= contrib_sum;
                 }
-                red   /= alpha_sum;
+                red /= alpha_sum;
                 green /= alpha_sum;
-                blue  /= alpha_sum;
+                blue /= alpha_sum;
             }
             /* Round up closest next channel value and clamp to max channel value */
-            red   = if red   >= 255.5 { 255.0 } else { red   + 0.5 };
-            blue  = if blue  >= 255.5 { 255.0 } else { blue  + 0.5 };
+            red = if red >= 255.5 { 255.0 } else { red + 0.5 };
+            blue = if blue >= 255.5 { 255.0 } else { blue + 0.5 };
             green = if green >= 255.5 { 255.0 } else { green + 0.5 };
-            let alpha = if alpha >= 127.0 + 0.5 { 127.0 } else { alpha + 0.5 };
-            let t = Rgba([
-                red   as u8,
-                green as u8,
-                blue  as u8,
-                alpha as u8
-            ]);
+            let alpha = if alpha >= 127.0 + 0.5 {
+                127.0
+            } else {
+                alpha + 0.5
+            };
+            let t = Rgba([red as u8, green as u8, blue as u8, alpha as u8]);
             dst.put_pixel(x, y, t);
         }
     }
@@ -289,10 +282,10 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use image::imageops::FilterType;
     use std::fs::File;
     use std::io::{self, BufRead};
     use std::path::Path;
-    use image::imageops::FilterType;
 
     //#[test]
     fn read() {
@@ -306,7 +299,6 @@ mod test {
             println!("{}, {}", pix.0, pix.1);
             assert_eq!(r, pix.2[0] as i32);
         }
-
     }
 
     //#[test]
@@ -343,7 +335,6 @@ mod test {
         compare_vals_ints(g_vec, cdata2);
         compare_vals_ints(b_vec, cdata3);
     }
-
 
     //#[test]
     fn compare_yiq_conversion() {
@@ -415,7 +406,9 @@ mod test {
     // The output is wrapped in a Result to allow matching on errors.
     // Returns an Iterator to the Reader of the lines of the file.
     fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-    where P: AsRef<Path>, {
+    where
+        P: AsRef<Path>,
+    {
         let file = File::open(filename)?;
         Ok(io::BufReader::new(file).lines())
     }
