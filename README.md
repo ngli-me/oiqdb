@@ -8,6 +8,15 @@ This version of IQDB is a fork of the original IQDB used by https://iqdb.org, ba
 
 Reimplementing the algorithm and features in Rust as a learning exercise.
 
+#### TODO
+<ul>
+    <li> Implement proper response for the API </li>
+    <li> Add sqlx integration </li>
+    <li> Split up the haar transform methods so it can be tested more easily </li>
+    <li> Add full testing </li>
+    <li> Make it backwards compatible with the original (this *might* not be possible, it looks like the image reader in the original is corrupting the data or something) </li> 
+</ul>
+
 # History
 
 This version of IQDB is a fork of the Danbooru implementation of [IQDB](https://github.com/danbooru/iqdb/),
