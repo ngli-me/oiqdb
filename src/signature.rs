@@ -1,9 +1,10 @@
 use image::imageops::FilterType;
 use image::DynamicImage;
+use serde::Serialize;
 
 mod haar;
 
-#[derive(Default)]
+#[derive(Default, Serialize)]
 pub struct HaarSignature {
     avglf: haar::LuminT,
     sig: haar::SignatureT,

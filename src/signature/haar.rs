@@ -2,20 +2,32 @@ use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgba};
 use itertools::izip;
 use num_traits::NumCast;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 pub const NUM_PIXELS: usize = 128;
 pub const NUM_PIXELS_SQUARED: usize = NUM_PIXELS.pow(2);
 
 pub const NUM_COEFS: usize = 40;
 // Assuming RGB
+// We're using this to also denote the number of signatures generated
 pub const NUM_CHANNELS: usize = 3;
-
 pub type LuminT = [f32; NUM_CHANNELS];
-pub struct SignatureT(Vec<[i16; NUM_COEFS]>);
+
+pub type SigT = [i16; NUM_COEFS];
+
+#[serde_as]
+#[derive(Deserialize, Serialize)]
+pub struct SignatureT {
+    #[serde_as(as = "[[_; NUM_COEFS]; 3]")]
+    sig: [SigT; NUM_CHANNELS],
+}
 
 impl Default for SignatureT {
     fn default() -> Self {
-        SignatureT([[0; NUM_COEFS]; 3].to_vec())
+        SignatureT {
+            sig: [[0; NUM_COEFS]; NUM_CHANNELS],
+        }
     }
 }
 
@@ -153,7 +165,12 @@ pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) -> (Lumin
     // Color channel 3
     let sig3: [i16; NUM_COEFS] = get_m_largest(cdata2[1..].to_vec());
 
-    (avglf, SignatureT([sig1, sig2, sig3].to_vec()))
+    (
+        avglf,
+        SignatureT {
+            sig: [sig1, sig2, sig3],
+        },
+    )
 }
 
 /**

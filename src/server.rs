@@ -1,12 +1,20 @@
 use axum::{
+    extract::Multipart,
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::{Response, IntoResponse},
     routing::{get, post},
-    serve::WithGracefulShutdown,
     Json,
 };
+use axum_extra::{
+    TypedHeader,
+    headers::Origin,
+};
+use image::io::Reader;
 use serde::{Deserialize, Serialize};
-use tokio::signal;
+use std::io::Cursor;
+use tokio::{signal, task};
+
+use crate::signature;
 
 // here we show a type that implements Serialize + Send
 #[derive(Serialize)]
@@ -26,7 +34,8 @@ pub async fn run() {
         .fallback(fallback)
         .route("/", get(hello))
         .route("/users", post(create_user))
-        .route("/image", post(images));
+        .route("/image", post(images))
+        .route("/upload", post(upload));
 
     // run our application as a hyper server on http://localhost:3000.
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -72,11 +81,11 @@ pub async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse
 
 /// axum handler for "get /" which returns a string and causes axum to
 /// immediately respond with status code `200 ok` and with the string.
-pub async fn hello() -> &'static str {
+async fn hello() -> &'static str {
     "hello, world!"
 }
 
-pub async fn images() -> (StatusCode, &'static str) {
+async fn images() -> (StatusCode, &'static str) {
     (StatusCode::OK, "called images")
 }
 
@@ -91,6 +100,26 @@ async fn create_user() -> (StatusCode, Json<User>) {
             username: "asd".to_string(),
         }),
     )
+}
+
+async fn upload(mut multipart: Multipart) -> Json<Message> {
+    while let Some(mut field) = multipart.next_field().await.unwrap() {
+        //let name = field.name().unwrap().to_string();
+        let raw_data = field.bytes().await.unwrap();
+        //let data_leng = raw_data.len();
+
+        let img = Reader::new(Cursor::new(raw_data))
+            .with_guessed_format()
+            .expect("Error while unwrapping image");
+        //ret = format!("Length of `{}` is {} bytes, with format {:?}", name, data_leng, img.format());
+        let img = img.decode().unwrap();
+        let _s = task::spawn_blocking(move || signature::HaarSignature::from(img)).await;
+    }
+
+    // Error response message -- multipart did not receive a file
+    Json(Message {
+        message: String::from("Ran through the upload function"),
+    })
 }
 
 // the input to our `create_user` handler
