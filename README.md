@@ -8,6 +8,8 @@ This version of IQDB is a fork of the original IQDB used by https://iqdb.org, ba
 
 Reimplementing the algorithm and features in Rust as a learning exercise.
 
+(Make a diagram for here later)
+
 #### TODO
 <ul>
     <li> Implement proper response for the API </li>
@@ -36,5 +38,11 @@ OIQDB is distributed under the terms of the GNU General Public License, followin
 * https://grail.cs.washington.edu/projects/query/mrquery.pdf
 * https://hub.docker.com/repository/docker/evazion/iqdb
 * https://unix4lyfe.org/haar/
+
+## Rust Stuff
+
+### Axum
+
+* Handling spawn blocking/bridging the sync and async portions of the code https://github.com/tokio-rs/axum/discussions/2045
 
 Thanks to the Rust community for providing documentation and tutorials, the authors of the original algorithm, implementations and forks.
