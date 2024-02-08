@@ -12,30 +12,15 @@ use tokio::{signal, task};
 
 use crate::signature;
 
-// here we show a type that implements Serialize + Send
-#[derive(Deserialize, Serialize)]
-pub struct Message {
-    message: String,
-}
-
-pub async fn run() {
-    // build our application by creating our router.
-    let app = axum::Router::new()
+pub fn router() -> axum::Router {
+    axum::Router::new()
         .fallback(fallback)
         .route("/", get(hello))
         .route("/image", post(images))
-        .route("/upload", post(query_image));
-
-    // run our application as a hyper server on http://localhost:3000.
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("{:?}", 0);
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+        .route("/upload", post(query_image))
 }
 
-async fn shutdown_signal() {
+pub async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -61,7 +46,7 @@ async fn shutdown_signal() {
 
 /// axum handler for any request that fails to match the router routes.
 /// this implementation returns http status code not found (404).
-pub async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
+async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
     (
         axum::http::StatusCode::NOT_FOUND,
         format!("no route {}", uri),
@@ -111,4 +96,37 @@ async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> 
             .expect("Error while decoding the image."));
     }
     Err(Error::new(ErrorKind::InvalidInput, "No input found"))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::TcpListener;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn routerFlow() {
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            axum::serve(listener, router()).await.unwrap();
+        });
+        let client =
+            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                .build_http();
+
+        let response = client
+            .request(
+                axum::http::Request::builder()
+                    .uri(format!("http://{addr}"))
+                    .header("Host", "localhost")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
 }
