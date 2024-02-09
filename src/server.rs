@@ -6,7 +6,6 @@ use axum::{
     Json,
 };
 use image::{io::Reader, DynamicImage};
-use serde::{Deserialize, Serialize};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
@@ -100,33 +99,40 @@ async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> 
 
 #[cfg(test)]
 mod tests {
-    use std::net::TcpListener;
-
     use super::*;
+    use hyper_util::client::legacy::{connect, Client};
 
     #[tokio::test]
-    async fn routerFlow() {
+    async fn route_tests() {
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
         let addr = listener.local_addr().unwrap();
 
         tokio::spawn(async move {
             axum::serve(listener, router()).await.unwrap();
         });
-        let client =
-            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
-                .build_http();
+        let client = Client::builder(hyper_util::rt::TokioExecutor::new()).build_http();
 
-        let response = client
-            .request(
-                axum::http::Request::builder()
-                    .uri(format!("http://{addr}"))
-                    .header("Host", "localhost")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+        async fn check_response(
+            client: Client<connect::HttpConnector, axum_core::body::Body>,
+            addr: std::net::SocketAddr,
+            path: String,
+            body: axum::body::Body,
+            status: StatusCode,
+        ) {
+            let response = client
+                .request(
+                    axum::http::Request::builder()
+                        .uri(format!("http://{addr}{path}"))
+                        .header("Host", "localhost")
+                        .body(body)
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.status(), status)
+        }
+
+        check_response(client, addr, "".to_string(), axum::body::Body::empty(), StatusCode::OK).await;
     }
 }
