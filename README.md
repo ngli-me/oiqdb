@@ -38,6 +38,7 @@ OIQDB is distributed under the terms of the GNU General Public License, followin
 * https://grail.cs.washington.edu/projects/query/mrquery.pdf
 * https://hub.docker.com/repository/docker/evazion/iqdb
 * https://unix4lyfe.org/haar/
+* https://dsp.stackexchange.com/questions/58843/what-is-the-correct-order-of-operations-for-a-2d-haar-wavelet-decomposition
 
 ## Rust Stuff
 

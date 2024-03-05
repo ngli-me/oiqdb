@@ -66,7 +66,7 @@ async fn images() -> (StatusCode, &'static str) {
 async fn upload() {}
 
 // Handler
-async fn query_image(mut multipart: Multipart) -> Response {
+async fn query_image(multipart: Multipart) -> Response {
     let res = match extract_image(multipart).await {
         Ok(img) => img,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -82,7 +82,7 @@ async fn query_image(mut multipart: Multipart) -> Response {
 }
 
 async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> {
-    while let Some(mut field) = multipart.next_field().await.unwrap() {
+    while let Some(field) = multipart.next_field().await.unwrap() {
         //let name = field.name().unwrap().to_string();
         let raw_data = field.bytes().await.unwrap();
 
@@ -129,10 +129,16 @@ mod tests {
                 )
                 .await
                 .unwrap();
-
             assert_eq!(response.status(), status)
         }
 
-        check_response(client, addr, "".to_string(), axum::body::Body::empty(), StatusCode::OK).await;
+        check_response(
+            client,
+            addr,
+            "".to_string(),
+            axum::body::Body::empty(),
+            StatusCode::OK,
+        )
+        .await;
     }
 }
