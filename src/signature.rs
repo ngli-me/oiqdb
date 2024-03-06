@@ -6,8 +6,8 @@ mod haar;
 
 #[derive(Default, Serialize)]
 pub struct HaarSignature {
-    avglf: haar::LuminT,
-    sig: haar::SignatureT,
+    pub avglf: haar::LuminT,
+    pub sig: haar::SignatureT,
 }
 
 impl HaarSignature {

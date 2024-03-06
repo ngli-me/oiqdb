@@ -140,7 +140,7 @@ mod test {
 
     #[test]
     fn image_resample_test() {
-        let img = image::open("files/peppers.jpg").unwrap();
+        let img = image::open("reference/peppers.jpg").unwrap();
         let mut imgbuf = image::ImageBuffer::new(200, 200);
         let r_vec: Vec<u8> = read_i32_vector_file((PATH.to_owned() + ORIGINAL[0]).to_string());
         let g_vec: Vec<u8> = read_i32_vector_file((PATH.to_owned() + ORIGINAL[1]).to_string());
