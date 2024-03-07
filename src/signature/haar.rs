@@ -1,16 +1,19 @@
+use std::ops::Deref;
+use bitvec::macros::internal::funty::Fundamental;
+use bitvec::prelude::*;
+use bitvec::view::AsBits;
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgba};
+use image::{DynamicImage, GenericImageView};
 use itertools::izip;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
+pub const NUM_CHANNELS: usize = 3;
+pub const NUM_COEFS: usize = 40;
 pub const NUM_PIXELS: usize = 128;
 pub const NUM_PIXELS_SQUARED: usize = NUM_PIXELS.pow(2);
+pub const SCALING_FACTOR: f32 = 256.0 * 128.0;
 
-pub const NUM_COEFS: usize = 40;
-// Assuming RGB
-// Same as number of signatures -- one per channel
-pub const NUM_CHANNELS: usize = 3;
 pub type LuminT = [f32; NUM_CHANNELS];
 
 pub type SigT = [i16; NUM_COEFS];
@@ -20,6 +23,29 @@ pub type SigT = [i16; NUM_COEFS];
 pub struct SignatureT {
     #[serde_as(as = "[[_; NUM_COEFS]; 3]")]
     sig: [SigT; NUM_CHANNELS],
+}
+
+trait ToBits {
+    fn flatten(&mut self) -> Vec<i16>;
+    fn flatten_and_serialize(&mut self) -> BitVec<u16, Lsb0>;
+}
+
+impl ToBits for SignatureT {
+    fn flatten(&mut self) -> Vec<i16> {
+        self.sig
+            .iter()
+            .flat_map(|array| array.iter())
+            .cloned()
+            .collect::<Vec<i16>>()
+    }
+
+    fn flatten_and_serialize(&mut self) -> BitVec<u16, Lsb0> {
+        let flat = self.flatten();
+        let flat_arr: &[i16; NUM_COEFS * NUM_CHANNELS] = <&[i16; NUM_COEFS * NUM_CHANNELS]>::try_from(
+            flat.as_slice()
+        ).unwrap();
+        flat_arr.map(i16::as_u16).as_bits::<Lsb0>().to_bitvec();
+    }
 }
 
 impl Default for SignatureT {
@@ -38,9 +64,9 @@ pub fn transform_char(img: DynamicImage) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
     haar_2d(&mut c);
 
     // Reintroduce the skipped scaling factors
-    a[0] /= 256.0 * 128.0;
-    b[0] /= 256.0 * 128.0;
-    c[0] /= 256.0 * 128.0;
+    a[0] /= SCALING_FACTOR;
+    b[0] /= SCALING_FACTOR;
+    c[0] /= SCALING_FACTOR;
 
     (a, b, c)
 }

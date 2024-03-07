@@ -42,7 +42,7 @@ impl From<DynamicImage> for HaarSignature {
     }
 }
 
-fn resize_image(mut img: DynamicImage) -> DynamicImage {
+fn resize_image(img: DynamicImage) -> DynamicImage {
     img.resize_exact(128, 128, FilterType::Triangle)
 }
 

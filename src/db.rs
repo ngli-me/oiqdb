@@ -1,9 +1,6 @@
 use anyhow::Result;
 use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use std::env;
-use std::mem::transmute;
-
-use crate::signature::HaarSignature;
 
 //impl Image {
 //    id: iqdb,
@@ -12,7 +9,6 @@ use crate::signature::HaarSignature;
 //    avglf2: f64,
 //    avglf3: f64,
 //    sig: Vec<char>,
-//
 //}
 
 pub async fn run_db() {
@@ -38,10 +34,7 @@ async fn initialize_and_connect_storage() -> Result<SqlitePool> {
     Ok(conn)
 }
 
-async fn insert_image(pool: &SqlitePool, signature: HaarSignature) -> Result<HaarSignature> {
-    let sig_bytes = unsafe {
-        transmute::<SignatureT, &[char]>(signature.sig)
-    };
+/*async fn insert_image(pool: &SqlitePool, signature: HaarSignature) -> Result<HaarSignature> {
     //.into_iter().collect::<BitVec>().as_raw_slice();
     let mut conn = pool.acquire().await?;
     let id = sqlx::query!(
@@ -52,14 +45,14 @@ async fn insert_image(pool: &SqlitePool, signature: HaarSignature) -> Result<Haa
         signature.avglf[0],
         signature.avglf[1],
         signature.avglf[2],
-        sig_bytes
+        0x00
     )
     .execute(&mut *conn)
     .await?
     .last_insert_rowid();
 
     Ok(id)
-}
+}*/
 
 #[cfg(test)]
 mod tests {
