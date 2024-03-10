@@ -9,6 +9,7 @@ use image::{io::Reader, DynamicImage};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
+use crate::db;
 use crate::signature;
 
 pub fn router() -> axum::Router {

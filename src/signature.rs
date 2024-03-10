@@ -63,7 +63,6 @@ fn resize_image(img: DynamicImage) -> DynamicImage {
 #[cfg(test)]
 mod test {
     use super::*;
-    use image::imageops::FilterType;
     use std::fs::File;
     use std::io::{self, BufRead};
     use std::path::Path;

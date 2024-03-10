@@ -1,6 +1,5 @@
-use std::ops::Deref;
 use bitvec::macros::internal::funty::Fundamental;
-use bitvec::prelude::*;
+use bitvec::prelude::{BitVec, Lsb0};
 use bitvec::view::AsBits;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
@@ -28,6 +27,7 @@ pub struct SignatureT {
 trait ToBits {
     fn flatten(&mut self) -> Vec<i16>;
     fn flatten_and_serialize(&mut self) -> BitVec<u16, Lsb0>;
+    fn to_blob(&mut self) -> String;
 }
 
 impl ToBits for SignatureT {
@@ -41,10 +41,13 @@ impl ToBits for SignatureT {
 
     fn flatten_and_serialize(&mut self) -> BitVec<u16, Lsb0> {
         let flat = self.flatten();
-        let flat_arr: &[i16; NUM_COEFS * NUM_CHANNELS] = <&[i16; NUM_COEFS * NUM_CHANNELS]>::try_from(
-            flat.as_slice()
-        ).unwrap();
-        flat_arr.map(i16::as_u16).as_bits::<Lsb0>().to_bitvec();
+        let flat_arr = <&[i16; NUM_COEFS * NUM_CHANNELS]>::try_from(flat.as_slice()).unwrap();
+        flat_arr.map(i16::as_u16).as_bits::<Lsb0>().to_bitvec()
+    }
+
+    fn to_blob(&mut self) -> String {
+        let b = self.flatten_and_serialize();
+        format!("{:x}", b).replace(&['[', ',', ' ', ']'], "")
     }
 }
 
