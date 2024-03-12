@@ -2,7 +2,7 @@ use image::imageops::FilterType;
 use image::DynamicImage;
 use serde::Serialize;
 
-mod haar;
+pub mod haar;
 
 #[derive(Default, Serialize)]
 pub struct HaarSignature {

@@ -6,6 +6,7 @@ use image::{DynamicImage, GenericImageView};
 use itertools::izip;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use std::f32::consts::FRAC_1_SQRT_2;
 
 pub const NUM_CHANNELS: usize = 3;
 pub const NUM_COEFS: usize = 40;
@@ -21,13 +22,13 @@ pub type SigT = [i16; NUM_COEFS];
 #[derive(Deserialize, Serialize)]
 pub struct SignatureT {
     #[serde_as(as = "[[_; NUM_COEFS]; 3]")]
-    sig: [SigT; NUM_CHANNELS],
+    pub sig: [SigT; NUM_CHANNELS],
 }
 
-trait ToBits {
+pub trait ToBits {
     fn flatten(&mut self) -> Vec<i16>;
     fn flatten_and_serialize(&mut self) -> BitVec<u16, Lsb0>;
-    fn to_blob(&mut self) -> String;
+    fn get_blob(&mut self) -> String;
 }
 
 impl ToBits for SignatureT {
@@ -45,7 +46,7 @@ impl ToBits for SignatureT {
         flat_arr.map(i16::as_u16).as_bits::<Lsb0>().to_bitvec()
     }
 
-    fn to_blob(&mut self) -> String {
+    fn get_blob(&mut self) -> String {
         let b = self.flatten_and_serialize();
         format!("{:x}", b).replace(&['[', ',', ' ', ']'], "")
     }
@@ -83,7 +84,7 @@ fn haar_rows(a: &mut Vec<f32>) {
             let (mut j1, mut j2, mut k): (usize, usize, usize) = (i, i, 0);
 
             h1 = h >> 1; // h1 = h / 2
-            c = c * 0.7071; // 1/sqrt(2)
+            c = c * FRAC_1_SQRT_2;
             let mut t: Vec<f32> = vec![0.0; h1];
             while k < h1 {
                 let j21: usize = j2 + 1;
@@ -114,7 +115,7 @@ fn haar_columns(a: &mut Vec<f32>) {
             let (mut j1, mut j2, mut k): (usize, usize, usize) = (i, i, 0);
 
             h1 = h >> 1; // h1 = h / 2
-            c = c * 0.7071; // 1/sqrt(2)
+            c = c * FRAC_1_SQRT_2;
             let mut t: Vec<f32> = vec![0.0; h1];
             while k < h1 {
                 let j21: usize = j2 + NUM_PIXELS;
