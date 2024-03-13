@@ -1,16 +1,37 @@
 # OIQDB: an Opinionated Image Querying DataBase model
 
-IQDB is a reverse image search system. It lets you search a database of images to find images that are visually similar to a given image.
+IQDB is a reverse image search system. It lets you search a database of images to find images that are visually similar
+to a given image.
 
-This version of IQDB is a fork of the original IQDB used by https://iqdb.org, based on the (IQDB fork)[https://github.com/danbooru/iqdb/] used by Danbooru.
+This version of IQDB is a fork of the original IQDB used by https://iqdb.org, based on the (IQDB
+fork)[https://github.com/danbooru/iqdb/] used by Danbooru.
 
-#### Reimplemented in Rust
+## Reimplemented in Rust
 
-Reimplementing the algorithm and features in Rust as a learning exercise.
+Reimplementing the algorithm and features in Rust as a learning exercise. Using sqlx and sqlite for the database
+connection.
 
 (Make a diagram for here later)
 
-#### TODO
+### Setup
+
+sqlx-cli is a requirement.
+
+```shell
+$ cargo install sqlx-cli
+$ sqlx db create
+$ sqlx migrate run
+```
+
+### Build and Run
+
+```shell
+$ cargo build
+$ cargo run
+```
+
+## TODO
+
 <ul>
     <li> Implement proper response for the API </li>
     <li> Add sqlx integration </li>
@@ -21,8 +42,9 @@ Reimplementing the algorithm and features in Rust as a learning exercise.
 
 # History
 
-This version of IQDB is a fork of the Danbooru implementation of [IQDB](https://github.com/danbooru/iqdb/),
-which is forked from the original [IQDB](https://iqdb.org/code).
+This version of IQDB is a rust rewrite of the Danbooru implementation of [IQDB](https://github.com/danbooru/iqdb/),
+which is forked from the [original](https://iqdb.org/code).
+
 The original code is written by [piespy](mailto:piespy@gmail.com). IQDB is based on code from
 [imgSeek](https://sourceforge.net/projects/imgseek/), written by Ricardo
 Niederberger Cabral. The IQDB algorithm is based on the paper
@@ -44,6 +66,10 @@ OIQDB is distributed under the terms of the GNU General Public License, followin
 
 ### Axum
 
-* Handling spawn blocking/bridging the sync and async portions of the code https://github.com/tokio-rs/axum/discussions/2045
+* To learn how to handle spawn blocking and bridging the sync and async portions of the code, I
+  looked [here](https://github.com/tokio-rs/axum/discussions/2045).
+* I liked how bitvec separated the docs and code, so started foraying into that style. Appreciate the good documentation
+  and support! It was very useful, you can find it [here](https://github.com/ferrilab/bitvec).
 
-Thanks to the Rust community for providing documentation and tutorials, the authors of the original algorithm, implementations and forks.
+Thanks to the Rust community for providing documentation and tutorials, the authors of the original algorithm,
+implementations and forks.

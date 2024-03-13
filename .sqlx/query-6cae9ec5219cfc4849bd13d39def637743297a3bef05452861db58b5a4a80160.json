@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO images ( id, avglf1, avglf2, avglf3, sig )\n        VALUES ( ($1), ($2), ($3), ($4), ($5) )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "6cae9ec5219cfc4849bd13d39def637743297a3bef05452861db58b5a4a80160"
+}

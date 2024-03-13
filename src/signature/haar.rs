@@ -15,7 +15,6 @@ pub const NUM_PIXELS_SQUARED: usize = NUM_PIXELS.pow(2);
 pub const SCALING_FACTOR: f32 = 256.0 * 128.0;
 
 pub type LuminT = [f32; NUM_CHANNELS];
-
 pub type SigT = [i16; NUM_COEFS];
 
 #[serde_as]
@@ -213,6 +212,7 @@ mod test {
     use std::fs::File;
     use std::io::{self, BufRead};
     use std::path::Path;
+
     const PATH: &str = "reference/";
     const RESIZE: [&str; 3] = ["r_resize.txt", "g_resize.txt", "b_resize.txt"];
     const ORIGINAL: [&str; 3] = ["r_buf.txt", "g_buf.txt", "b_buf.txt"];
@@ -257,8 +257,8 @@ mod test {
     // The output is wrapped in a Result to allow matching on errors.
     // Returns an Iterator to the Reader of the lines of the file.
     fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-    where
-        P: AsRef<Path>,
+        where
+            P: AsRef<Path>,
     {
         let file = File::open(filename)?;
         Ok(io::BufReader::new(file).lines())

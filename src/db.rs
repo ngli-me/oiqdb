@@ -1,6 +1,6 @@
 use anyhow::Result;
 use dotenvy::dotenv;
-use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
+use sqlx::SqlitePool;
 use std::env;
 
 use crate::signature;
@@ -13,21 +13,40 @@ pub struct Sql {
 impl Sql {
     pub async fn insert_signature(&self, mut signature: signature::HaarSignature) -> Result<i64> {
         let mut conn = self.pool.acquire().await?;
-        let id = sqlx::query(
+        let blob = signature.sig.get_blob();
+        let id = sqlx::query!(
             r#"
         INSERT INTO images ( id, avglf1, avglf2, avglf3, sig )
-        VALUES ( NULL, ($1), ($2), ($3), ($4) )
+        VALUES ( ($1), ($2), ($3), ($4), ($5) )
         "#,
+            1,
+            signature.avglf[0],
+            signature.avglf[1],
+            signature.avglf[2],
+            blob
         )
-        .bind(signature.avglf[0])
-        .bind(signature.avglf[1])
-        .bind(signature.avglf[2])
-        .bind(signature.sig.get_blob())
-        .execute(&mut *conn)
-        .await?
-        .last_insert_rowid();
+            .execute(&mut *conn)
+            .await?
+            .last_insert_rowid();
 
         Ok(id)
+    }
+
+    pub async fn list_rows(&self) -> Result<()> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, avglf1, avglf2, avglf3
+            FROM images
+            "#,
+        )
+            .fetch_all(&self.pool)
+            .await?;
+
+        for r in rows {
+            println!("- [{}]: {} {} {}", r.id, &r.avglf1, &r.avglf2, &r.avglf3, );
+        }
+
+        Ok(())
     }
 }
 
@@ -45,18 +64,8 @@ async fn get_db_url() -> Result<String> {
 }
 
 async fn initialize_and_connect_storage(url: &str) -> Result<SqlitePool> {
-    // Set up the Sqlite database
-    if !Sqlite::database_exists(url).await.unwrap_or(false) {
-        println!("Database doesn't exist, creating database {}.", url);
-        match Sqlite::create_database(url).await {
-            Ok(_) => println!("Create db success."),
-            Err(error) => panic!("Error while creating database: {}.", error),
-        }
-    }
-
     let conn = SqlitePool::connect(url).await?;
 
-    println!("Running migrations");
     sqlx::migrate!().run(&conn).await?;
 
     Ok(conn)
@@ -70,13 +79,14 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
-    static DB: &str = "tmp.db";
     static TMP_FILES: [&str; 2] = ["shm", "wal"];
 
     #[tokio::test]
-    async fn tmp() {
-        let environment = "test/init.env";
-        dotenvy::from_filename(environment).expect("Test env file not found.");
+    #[doc = include_str!("../doc/db/test.md")]
+    async fn test() {
+        // Initialize the test db
+        // Ensure the db file is created according to the env file
+        dotenv().expect("Test env file not found.");
         let url = env::var("DATABASE_URL").unwrap();
 
         let sql = Sql {
@@ -85,11 +95,11 @@ mod tests {
                 .expect("Error while initializing and connecting to database."),
         };
 
-        let db = Path::new(DB);
+        let db = Path::new(&url);
         assert!(db.exists());
 
+        // Insert a signature
         let s: haar::SigT = [0; haar::NUM_COEFS];
-        // Test inserting an entry
         let sig = signature::HaarSignature {
             // Create a blank haar signature to insert
             avglf: [0.0, 0.0, 0.0],
@@ -102,10 +112,14 @@ mod tests {
             .expect("Error while inserting signature.");
         println!("Added new entry with id {id}.");
 
+        // List entries
+        let _ = sql.list_rows().await.expect("Error while listing rows");
+
+        sql.pool.close().await;
+
         // Cleanup tmp sqlite db files
-        fs::remove_file(db).unwrap();
         for suffix in TMP_FILES {
-            let name = format!("{DB}-{suffix}");
+            let name = format!("{url}-{suffix}");
             let tmp = Path::new(name.as_str());
             if tmp.exists() {
                 println!("Removing tmp file: {:?}", tmp);
