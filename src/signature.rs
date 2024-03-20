@@ -34,7 +34,7 @@ struct ImgBin<const N: usize> {
     bin: [i16; N],
 }
 
-impl ImgBin<N> {}
+//impl ImgBin<N> {}
 
 #[derive(FromRow)]
 #[derive(Default, Serialize)]

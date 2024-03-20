@@ -1,6 +1,7 @@
 use anyhow::Result;
 use dotenvy::dotenv;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqliteQueryResult;
 use std::env;
 
 use crate::signature;
@@ -48,6 +49,21 @@ impl Sql {
 
         Ok(())
     }
+
+    pub async fn remove_image(&self, mut id: u32) -> Result<SqliteQueryResult> {
+        let mut conn = self.pool.acquire().await?;
+        let res = sqlx::query!(
+            r#"
+            DELETE FROM images
+            WHERE id = ($1)
+            "#,
+            id
+        )
+        .execute(&mut *conn)
+        .await?;
+
+        Ok(res)
+    }
 }
 
 pub async fn run_db() -> Sql {
@@ -65,9 +81,7 @@ async fn get_db_url() -> Result<String> {
 
 async fn initialize_and_connect_storage(url: &str) -> Result<SqlitePool> {
     let conn = SqlitePool::connect(url).await?;
-
     sqlx::migrate!().run(&conn).await?;
-
     Ok(conn)
 }
 
@@ -78,6 +92,7 @@ mod tests {
     use crate::signature::haar::SignatureT;
     use std::fs;
     use std::path::Path;
+    use regex::Regex;
 
     static TMP_FILES: [&str; 2] = ["shm", "wal"];
 
@@ -86,7 +101,7 @@ mod tests {
     async fn test() {
         // Initialize the test db
         // Ensure the db file is created according to the env file
-        dotenv().expect("Test env file not found.");
+        dotenv().expect("Env file not found.");
         let url = env::var("DATABASE_URL").unwrap();
 
         let sql = Sql {
@@ -95,7 +110,12 @@ mod tests {
                 .expect("Error while initializing and connecting to database."),
         };
 
-        let db = Path::new(&url);
+        // Get the filepath for the db from the environment variable
+        let re = Regex::new(r"(?:sqlite:\/\/)?(.+)").unwrap();
+        let Some(caps) = re.captures(&url) else { return };
+        assert!(!&caps[1].is_empty()); 
+
+        let db = Path::new(&caps[1]);
         assert!(db.exists());
 
         // Insert a signature
