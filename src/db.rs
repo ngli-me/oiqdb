@@ -1,18 +1,23 @@
 use anyhow::Result;
 use dotenvy::dotenv;
-use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteQueryResult;
+use sqlx::SqlitePool;
 use std::env;
 
 use crate::signature;
 use crate::signature::haar::ToBits;
 
+#[derive(Clone)]
 pub struct Sql {
     pool: SqlitePool,
 }
 
 impl Sql {
-    pub async fn insert_signature(&self, mut signature: signature::HaarSignature) -> Result<i64> {
+    pub async fn insert_signature(
+        &self,
+        id: u32,
+        mut signature: signature::HaarSignature,
+    ) -> Result<i64> {
         let mut conn = self.pool.acquire().await?;
         let blob = signature.sig.get_blob();
         let id = sqlx::query!(
@@ -20,15 +25,15 @@ impl Sql {
         INSERT INTO images ( id, avglf1, avglf2, avglf3, sig )
         VALUES ( ($1), ($2), ($3), ($4), ($5) )
         "#,
-            1,
+            id,
             signature.avglf[0],
             signature.avglf[1],
             signature.avglf[2],
             blob
         )
-            .execute(&mut *conn)
-            .await?
-            .last_insert_rowid();
+        .execute(&mut *conn)
+        .await?
+        .last_insert_rowid();
 
         Ok(id)
     }
@@ -40,11 +45,11 @@ impl Sql {
             FROM images
             "#,
         )
-            .fetch_all(&self.pool)
-            .await?;
+        .fetch_all(&self.pool)
+        .await?;
 
         for r in rows {
-            println!("- [{}]: {} {} {}", r.id, &r.avglf1, &r.avglf2, &r.avglf3, );
+            println!("- [{}]: {} {} {}", r.id, &r.avglf1, &r.avglf2, &r.avglf3,);
         }
 
         Ok(())
@@ -90,9 +95,9 @@ mod tests {
     use super::*;
     use crate::signature::haar;
     use crate::signature::haar::SignatureT;
+    use regex::Regex;
     use std::fs;
     use std::path::Path;
-    use regex::Regex;
 
     static TMP_FILES: [&str; 2] = ["shm", "wal"];
 
@@ -112,8 +117,10 @@ mod tests {
 
         // Get the filepath for the db from the environment variable
         let re = Regex::new(r"(?:sqlite:\/\/)?(.+)").unwrap();
-        let Some(caps) = re.captures(&url) else { return };
-        assert!(!&caps[1].is_empty()); 
+        let Some(caps) = re.captures(&url) else {
+            return;
+        };
+        assert!(!&caps[1].is_empty());
 
         let db = Path::new(&caps[1]);
         assert!(db.exists());
@@ -126,13 +133,23 @@ mod tests {
             sig: SignatureT { sig: [s, s, s] },
         };
 
-        let id = sql
-            .insert_signature(sig)
+        let id: u32 = 555;
+
+        let _ = sql
+            .insert_signature(id, sig)
             .await
             .expect("Error while inserting signature.");
         println!("Added new entry with id {id}.");
 
-        // List entries
+        let _ = sql.list_rows().await.expect("Error while listing rows");
+
+        // Remove image
+        let _ = sql
+            .remove_image(id)
+            .await
+            .expect("Error while removing id: {id}");
+        println!("Running remove image");
+
         let _ = sql.list_rows().await.expect("Error while listing rows");
 
         sql.pool.close().await;
