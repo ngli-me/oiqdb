@@ -1,5 +1,5 @@
 use axum::{
-    extract::Multipart,
+    extract::{Multipart, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -9,15 +9,17 @@ use image::{io::Reader, DynamicImage};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
-use crate::db;
+use crate::db::{self, Sql};
 use crate::signature;
 
-pub fn router() -> axum::Router {
+pub async fn router() -> axum::Router {
+    let sql = db::run_db().await;
     axum::Router::new()
         .fallback(fallback)
         .route("/", get(hello))
         .route("/image", post(images))
         .route("/upload", post(query_image))
+        .with_state(sql)
 }
 
 pub async fn shutdown_signal() {
@@ -59,15 +61,15 @@ async fn hello() -> &'static str {
     "hello, world!"
 }
 
-async fn images() -> (StatusCode, &'static str) {
+async fn images(State(sql): State<Sql>) -> (StatusCode, &'static str) {
     (StatusCode::OK, "called images")
 }
 
 // Axum Route for ...
-async fn upload() {}
+async fn upload(State(sql): State<Sql>) {}
 
 // Handler
-async fn query_image(multipart: Multipart) -> Response {
+async fn query_image(State(sql): State<Sql>, multipart: Multipart) -> Response {
     let res = match extract_image(multipart).await {
         Ok(img) => img,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),

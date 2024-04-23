@@ -6,6 +6,7 @@ use image::{DynamicImage, GenericImageView};
 use itertools::izip;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use std::f32::consts::FRAC_1_SQRT_2;
 
 pub const NUM_CHANNELS: usize = 3;
 pub const NUM_COEFS: usize = 40;
@@ -13,21 +14,21 @@ pub const NUM_PIXELS: usize = 128;
 pub const NUM_PIXELS_SQUARED: usize = NUM_PIXELS.pow(2);
 pub const SCALING_FACTOR: f32 = 256.0 * 128.0;
 
+pub type Idx = i16;
 pub type LuminT = [f32; NUM_CHANNELS];
-
 pub type SigT = [i16; NUM_COEFS];
 
 #[serde_as]
 #[derive(Deserialize, Serialize)]
 pub struct SignatureT {
     #[serde_as(as = "[[_; NUM_COEFS]; 3]")]
-    sig: [SigT; NUM_CHANNELS],
+    pub sig: [SigT; NUM_CHANNELS],
 }
 
-trait ToBits {
+pub trait ToBits {
     fn flatten(&mut self) -> Vec<i16>;
     fn flatten_and_serialize(&mut self) -> BitVec<u16, Lsb0>;
-    fn to_blob(&mut self) -> String;
+    fn get_blob(&mut self) -> String;
 }
 
 impl ToBits for SignatureT {
@@ -45,7 +46,7 @@ impl ToBits for SignatureT {
         flat_arr.map(i16::as_u16).as_bits::<Lsb0>().to_bitvec()
     }
 
-    fn to_blob(&mut self) -> String {
+    fn get_blob(&mut self) -> String {
         let b = self.flatten_and_serialize();
         format!("{:x}", b).replace(&['[', ',', ' ', ']'], "")
     }
@@ -83,7 +84,7 @@ fn haar_rows(a: &mut Vec<f32>) {
             let (mut j1, mut j2, mut k): (usize, usize, usize) = (i, i, 0);
 
             h1 = h >> 1; // h1 = h / 2
-            c = c * 0.7071; // 1/sqrt(2)
+            c = c * FRAC_1_SQRT_2;
             let mut t: Vec<f32> = vec![0.0; h1];
             while k < h1 {
                 let j21: usize = j2 + 1;
@@ -114,7 +115,7 @@ fn haar_columns(a: &mut Vec<f32>) {
             let (mut j1, mut j2, mut k): (usize, usize, usize) = (i, i, 0);
 
             h1 = h >> 1; // h1 = h / 2
-            c = c * 0.7071; // 1/sqrt(2)
+            c = c * FRAC_1_SQRT_2;
             let mut t: Vec<f32> = vec![0.0; h1];
             while k < h1 {
                 let j21: usize = j2 + NUM_PIXELS;
@@ -212,6 +213,7 @@ mod test {
     use std::fs::File;
     use std::io::{self, BufRead};
     use std::path::Path;
+
     const PATH: &str = "reference/";
     const RESIZE: [&str; 3] = ["r_resize.txt", "g_resize.txt", "b_resize.txt"];
     const ORIGINAL: [&str; 3] = ["r_buf.txt", "g_buf.txt", "b_buf.txt"];
@@ -256,8 +258,8 @@ mod test {
     // The output is wrapped in a Result to allow matching on errors.
     // Returns an Iterator to the Reader of the lines of the file.
     fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-    where
-        P: AsRef<Path>,
+        where
+            P: AsRef<Path>,
     {
         let file = File::open(filename)?;
         Ok(io::BufReader::new(file).lines())
