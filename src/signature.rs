@@ -17,25 +17,6 @@ const WEIGHTS: [&[f32; 3]; 6] = [
     &[0.47, 00.28, 00.18],   // 4    0.93      9
     &[0.30, 00.14, 00.27]];  // 5    0.71      16384-25=16359
 
-// A 128x128 weight mask matrix, where M[x][y] = min(max(x, y), 5). Used in
-// score calculation.
-//
-// 0 1 2 3 4 5 5 ...
-// 1 1 2 3 4 5 5 ...
-// 2 2 2 3 4 5 5 ...
-// 3 3 3 3 4 5 5 ...
-// 4 4 4 4 4 5 5 ...
-// 5 5 5 5 5 5 5 ...
-// 5 5 5 5 5 5 5 ...
-// . . . . . . .
-// . . . . . . .
-// . . . . . . .
-struct ImgBin<const N: usize> {
-    bin: [i16; N],
-}
-
-//impl ImgBin<N> {}
-
 #[derive(FromRow)]
 #[derive(Default, Serialize)]
 pub struct HaarSignature {

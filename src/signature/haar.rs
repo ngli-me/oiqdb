@@ -14,6 +14,7 @@ pub const NUM_PIXELS: usize = 128;
 pub const NUM_PIXELS_SQUARED: usize = NUM_PIXELS.pow(2);
 pub const SCALING_FACTOR: f32 = 256.0 * 128.0;
 
+pub type Idx = i16;
 pub type LuminT = [f32; NUM_CHANNELS];
 pub type SigT = [i16; NUM_COEFS];
 
