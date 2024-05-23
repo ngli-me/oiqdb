@@ -5,18 +5,6 @@ use sqlx::FromRow;
 
 pub mod haar;
 
-// Weights for the Haar coefficients.
-// Straight from the referenced paper:
-const WEIGHTS: [&[f32; 3]; 6] = [
-    // For scanned picture (sketch=0):
-    //    Y      I      Q       idx total occurs
-    &[5.00, 19.21, 34.37],   // 0   58.58      1 (`DC' component)
-    &[0.83, 01.26, 00.36],   // 1    2.45      3
-    &[1.01, 00.44, 00.45],   // 2    1.90      5
-    &[0.52, 00.53, 00.14],   // 3    1.19      7
-    &[0.47, 00.28, 00.18],   // 4    0.93      9
-    &[0.30, 00.14, 00.27]];  // 5    0.71      16384-25=16359
-
 #[derive(FromRow)]
 #[derive(Default, Serialize)]
 pub struct HaarSignature {
@@ -25,18 +13,18 @@ pub struct HaarSignature {
 }
 
 impl HaarSignature {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             avglf: [0.0; haar::NUM_CHANNELS],
             sig: Default::default(),
         }
     }
 
-    fn is_grayscale(&self) -> bool {
+    pub fn is_grayscale(&self) -> bool {
         self.avglf[1].abs() + self.avglf[2].abs() < (6.0 / 1000.0)
     }
 
-    fn num_colors(&self) -> i32 {
+    pub fn num_colors(&self) -> i32 {
         if self.is_grayscale() {
             1
         } else {

@@ -30,7 +30,7 @@ pub async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-    let terminate = async {
+        let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -38,7 +38,7 @@ pub async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+        let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},
@@ -48,7 +48,7 @@ pub async fn shutdown_signal() {
 
 /// axum handler for any request that fails to match the router routes.
 /// this implementation returns http status code not found (404).
-async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
+async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
     (
         axum::http::StatusCode::NOT_FOUND,
         format!("no route {}", uri),
@@ -74,14 +74,13 @@ async fn query_image(State(sql): State<Sql>, multipart: Multipart) -> Response {
         Ok(img) => img,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
-
     Json(
         // Calculate the Haar Signature
         task::spawn_blocking(move || signature::HaarSignature::from(res))
             .await
             .expect("Error while generating haar signature"),
     )
-    .into_response()
+        .into_response()
 }
 
 async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> {
@@ -103,45 +102,15 @@ async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyper_util::client::legacy::{connect, Client};
+    use axum_test::TestServer;
 
     #[tokio::test]
     async fn route_tests() {
-        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-        let addr = listener.local_addr().unwrap();
+        let server = TestServer::new(router().await).unwrap();
 
-        tokio::spawn(async move {
-            axum::serve(listener, router()).await.unwrap();
-        });
-        let client = Client::builder(hyper_util::rt::TokioExecutor::new()).build_http();
+        let response = server.get(&"/").await;
 
-        async fn check_response(
-            client: Client<connect::HttpConnector, axum_core::body::Body>,
-            addr: std::net::SocketAddr,
-            path: String,
-            body: axum::body::Body,
-            status: StatusCode,
-        ) {
-            let response = client
-                .request(
-                    axum::http::Request::builder()
-                        .uri(format!("http://{addr}{path}"))
-                        .header("Host", "localhost")
-                        .body(body)
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), status)
-        }
-
-        check_response(
-            client,
-            addr,
-            "".to_string(),
-            axum::body::Body::empty(),
-            StatusCode::OK,
-        )
-        .await;
+        response.assert_status_ok();
+        response.assert_text("hello, world!");
     }
 }
