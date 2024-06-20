@@ -2,7 +2,6 @@ mod db;
 mod imgdb;
 mod server;
 mod signature;
-mod imglib;
 
 #[tokio::main]
 async fn main() {

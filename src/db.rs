@@ -5,7 +5,6 @@ use sqlx::SqlitePool;
 use std::env;
 
 use crate::signature;
-use crate::signature::haar::ToBits;
 
 #[derive(Clone)]
 pub struct Sql {
@@ -15,25 +14,27 @@ pub struct Sql {
 impl Sql {
     pub async fn insert_signature(
         &self,
-        id: u32,
-        mut signature: signature::HaarSignature,
+        signature: &signature::HaarSignature,
     ) -> Result<i64> {
         let mut conn = self.pool.acquire().await?;
-        let blob = signature.sig.get_blob();
+        let blob0 = serde_json::to_string(&signature.sig0).unwrap();
+        let blob1 = serde_json::to_string(&signature.sig1).unwrap();
+        let blob2 = serde_json::to_string(&signature.sig2).unwrap();
         let id = sqlx::query!(
             r#"
-        INSERT INTO images ( id, avglf1, avglf2, avglf3, sig )
-        VALUES ( ($1), ($2), ($3), ($4), ($5) )
+        INSERT INTO images ( avglf1, avglf2, avglf3, sig0, sig1, sig2 )
+        VALUES ( ($1), ($2), ($3), ($4), ($5), ($6))
         "#,
-            id,
             signature.avglf[0],
             signature.avglf[1],
             signature.avglf[2],
-            blob
+            blob0,
+            blob1,
+            blob2
         )
-        .execute(&mut *conn)
-        .await?
-        .last_insert_rowid();
+            .execute(&mut *conn)
+            .await?
+            .last_insert_rowid();
 
         Ok(id)
     }
@@ -45,11 +46,11 @@ impl Sql {
             FROM images
             "#,
         )
-        .fetch_all(&self.pool)
-        .await?;
+            .fetch_all(&self.pool)
+            .await?;
 
         for r in rows {
-            println!("- [{}]: {} {} {}", r.id, &r.avglf1, &r.avglf2, &r.avglf3,);
+            println!("- [{}]: {} {} {}", r.id, &r.avglf1, &r.avglf2, &r.avglf3, );
         }
 
         Ok(())
@@ -64,8 +65,8 @@ impl Sql {
             "#,
             id
         )
-        .execute(&mut *conn)
-        .await?;
+            .execute(&mut *conn)
+            .await?;
 
         Ok(res)
     }
@@ -126,7 +127,7 @@ mod tests {
         assert!(db.exists());
 
         // Insert a signature
-        let s: haar::SigT = [0; haar::NUM_COEFS];
+        let s: [i16; 40] = [0; haar::NUM_COEFS];
         let sig = signature::HaarSignature {
             // Create a blank haar signature to insert
             avglf: [0.0, 0.0, 0.0],

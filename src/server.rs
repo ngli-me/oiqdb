@@ -11,6 +11,7 @@ use tokio::{signal, task};
 
 use crate::db::{self, Sql};
 use crate::signature;
+use crate::signature::HaarSignature;
 
 pub async fn router() -> axum::Router {
     let sql = db::run_db().await;
@@ -74,20 +75,22 @@ async fn query_image(State(sql): State<Sql>, multipart: Multipart) -> Response {
         Ok(img) => img,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
-    Json(
-        // Calculate the Haar Signature
-        task::spawn_blocking(move || signature::HaarSignature::from(res))
-            .await
-            .expect("Error while generating haar signature"),
-    )
-        .into_response()
+    // Calculate the Haar Signature
+    let sig: HaarSignature = task::spawn_blocking(move || signature::HaarSignature::from(res))
+        .await
+        .expect("Error while generating haar signature");
+
+    // Insert into the db
+    sql.insert_signature(&sig).await;
+
+    // Give back the requester something to chew on
+    Json(sig).into_response()
 }
 
 async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> {
     while let Some(field) = multipart.next_field().await.unwrap() {
         //let name = field.name().unwrap().to_string();
         let raw_data = field.bytes().await.unwrap();
-
         let read_image = Reader::new(Cursor::new(raw_data))
             .with_guessed_format()
             .expect("Error while unwrapping image.");

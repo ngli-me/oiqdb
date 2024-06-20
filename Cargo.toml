@@ -21,3 +21,4 @@ sqlx = { version = "0.7.3", features = ["migrate", "runtime-tokio", "sqlite"] }
 tokio = { version = "1.35.0", features = ["full", "macros", "rt", "rt-multi-thread"] }
 tower = "0.4.13"
 regex = "1.10.3"
+serde-big-array = "0.5.1"

@@ -2,21 +2,43 @@ use image::imageops::FilterType;
 use image::DynamicImage;
 use serde::Serialize;
 use sqlx::FromRow;
+use std::ops::Index;
 
 pub mod haar;
 
-#[derive(FromRow)]
-#[derive(Default, Serialize)]
+pub enum SigIndex {
+    S0,
+    S1,
+    S2,
+}
+
+impl From<usize> for SigIndex {
+    fn from(value: usize) -> Self {
+        match value {
+            0 => SigIndex::S0,
+            1 => SigIndex::S1,
+            2 => SigIndex::S2,
+            _ => panic!("Index out of range for SigIndex"),
+        }
+    }
+}
+
+
+#[derive(FromRow, Default, Serialize)]
 pub struct HaarSignature {
-    pub avglf: haar::LuminT,
-    pub sig: haar::SignatureT,
+    pub avglf: haar::Lumin,
+    pub sig0: haar::SigT,
+    pub sig1: haar::SigT,
+    pub sig2: haar::SigT,
 }
 
 impl HaarSignature {
     pub fn new() -> Self {
         Self {
-            avglf: [0.0; haar::NUM_CHANNELS],
-            sig: Default::default(),
+            avglf: [0.0; haar::N_COLORS],
+            sig0: Default::default(),
+            sig1: Default::default(),
+            sig2: Default::default(),
         }
     }
 
@@ -24,11 +46,36 @@ impl HaarSignature {
         self.avglf[1].abs() + self.avglf[2].abs() < (6.0 / 1000.0)
     }
 
-    pub fn num_colors(&self) -> i32 {
+    pub fn num_colors(&self) -> usize {
         if self.is_grayscale() {
             1
         } else {
             3
+        }
+    }
+}
+
+
+impl Index<SigIndex> for HaarSignature {
+    type Output = [i16; haar::NUM_COEFS];
+
+    fn index(&self, index: SigIndex) -> &Self::Output {
+        match index {
+            SigIndex::S0 => &self.sig0.sig,
+            SigIndex::S1 => &self.sig1.sig,
+            SigIndex::S2 => &self.sig2.sig,
+        }
+    }
+}
+
+impl Index<usize> for HaarSignature {
+    type Output = [i16; haar::NUM_COEFS];
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match SigIndex::from(index) {
+            SigIndex::S0 => &self.sig0.sig,
+            SigIndex::S1 => &self.sig1.sig,
+            SigIndex::S2 => &self.sig2.sig,
         }
     }
 }
@@ -39,8 +86,8 @@ impl From<DynamicImage> for HaarSignature {
         let filecontent = resize_image(filecontent);
         // Resize image and conver to YIQ
         let (a, b, c) = haar::transform_char(filecontent);
-        let (avglf, sig): (haar::LuminT, haar::SignatureT) = haar::calc_haar(a, b, c);
-        HaarSignature { avglf, sig }
+        let (avglf, sig0, sig1, sig2): (haar::Lumin, haar::SigT, haar::SigT, haar::SigT) = haar::calc_haar(a, b, c);
+        HaarSignature { avglf, sig0, sig1, sig2 }
     }
 }
 
