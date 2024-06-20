@@ -95,7 +95,6 @@ async fn initialize_and_connect_storage(url: &str) -> Result<SqlitePool> {
 mod tests {
     use super::*;
     use crate::signature::haar;
-    use crate::signature::haar::SignatureT;
     use regex::Regex;
     use std::fs;
     use std::path::Path;
@@ -103,7 +102,7 @@ mod tests {
     static TMP_FILES: [&str; 2] = ["shm", "wal"];
 
     #[tokio::test]
-    #[doc = include_str!("../doc/db/test.md")]
+    #[doc = include_str!("../../doc/db/test.md")]
     async fn test() {
         // Initialize the test db
         // Ensure the db file is created according to the env file
@@ -127,17 +126,18 @@ mod tests {
         assert!(db.exists());
 
         // Insert a signature
-        let s: [i16; 40] = [0; haar::NUM_COEFS];
         let sig = signature::HaarSignature {
             // Create a blank haar signature to insert
             avglf: [0.0, 0.0, 0.0],
-            sig: SignatureT { sig: [s, s, s] },
+            sig0: haar::SigT { sig: [0; haar::NUM_COEFS] },
+            sig1: haar::SigT { sig: [0; haar::NUM_COEFS] },
+            sig2: haar::SigT { sig: [0; haar::NUM_COEFS] },
         };
 
         let id: u32 = 555;
 
         let _ = sql
-            .insert_signature(id, sig)
+            .insert_signature(&sig)
             .await
             .expect("Error while inserting signature.");
         println!("Added new entry with id {id}.");

@@ -5,6 +5,8 @@ use num_traits::abs;
 use std::borrow::Borrow;
 use std::cmp::{max, min};
 use std::collections::BinaryHeap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 type ImageId = i32;
 type IqdbId = usize; // An internal IQDB image ID.
@@ -13,20 +15,6 @@ type Score = f32;
 type SimVector = Vec<SimValue>;
 type Sig = [Idx; NUM_COEFS];
 type Bucket = Vec<u32>;
-
-struct ImageInfo {
-    id: ImageId,
-    avgl: LuminNative,
-}
-
-struct LuminNative {
-    pub v: [Score; 3],
-}
-
-struct SimValue {
-    pub id: ImageId,
-    pub score: Score,
-}
 
 const N_SIGNS: usize = 2; // 2 haar coefficient signs (positive and negative)
 const N_INDEXES: usize = NUM_PIXELS_SQUARED; // 16384 haar matrix indices
@@ -42,6 +30,25 @@ pub const WEIGHTS: [&[f32; 3]; 6] = [
     &[0.47, 00.28, 00.18], // 4    0.93      9
     &[0.30, 00.14, 00.27], // 5    0.71      16384-25=16359
 ];
+
+struct ImageInfo {
+    id: ImageId,
+    avgl: LuminNative,
+}
+
+struct LuminNative {
+    pub v: [Score; 3],
+}
+
+struct SimValue {
+    pub id: ImageId,
+    pub score: Score,
+}
+
+#[derive(Clone)]
+pub struct ImgBinState {
+    pub data: Arc<Mutex<ImgBin>>,
+}
 
 pub struct ImgBin {
     // A 128x128 weight mask matrix, where M[x][y] = min(max(x, y), 5). Used in score calculation.
@@ -80,6 +87,14 @@ impl ImgBin {
         }
     }
 
+    pub fn add(&mut self, sig: &HaarSignature, iqdb_id: u32) {
+        self.each_bucket(sig, |bucket: &mut Bucket| { bucket.push(iqdb_id) });
+    }
+
+    pub fn remove(&mut self, sig: &HaarSignature, iqdb_id: u32) {
+        self.each_bucket(sig, |bucket: &mut Bucket| { bucket.retain(|&x: &u32| x != iqdb_id) })
+    }
+
     fn at(&mut self, color: usize, coef: i16) -> &mut Bucket {
         let sign: bool = coef < 0;
         &mut self.buckets[color][sign as usize][abs(coef) as usize]
@@ -96,20 +111,14 @@ impl ImgBin {
         }
     }
 
-    // addImage
+    /*fn add_image(&mut self, post_id: PostId, signature: &HaarSignature) {
+        self.remove_image(post_id);
+    }*/
+
     // addImageInMemory
-    // loadDatabase
 
     fn is_deleted(&self, iqdb_id: IqdbId) -> bool {
         return self.info[iqdb_id].avgl.v[0] == 0.0;
-    }
-
-    pub fn add(&mut self, sig: &HaarSignature, iqdb_id: u32) {
-        self.each_bucket(sig, |bucket: &mut Bucket| { bucket.push(iqdb_id) });
-    }
-
-    pub fn remove(&mut self, sig: &HaarSignature, iqdb_id: u32) {
-        self.each_bucket(sig, |bucket: &mut Bucket| { bucket.retain(|&x: &u32| x != iqdb_id) })
     }
 
     fn query_from_blob(&self, image: DynamicImage, limit: i32) {
@@ -158,10 +167,15 @@ impl ImgBin {
             i += 1;
         }
     }*/
+
+    /*fn remove_image(&self, image_id: ImageId) {
+        let image =
+    }*/
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::iqdb::imgdb::ImgBin;
     use super::*;
 
     #[test]

@@ -9,18 +9,18 @@ use image::{io::Reader, DynamicImage};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
-use crate::db::{self, Sql};
-use crate::signature;
+use crate::iqdb::{db, IQDB};
+use crate::{iqdb, signature};
 use crate::signature::HaarSignature;
 
 pub async fn router() -> axum::Router {
-    let sql = db::run_db().await;
+    let iqdb = iqdb::IQDB::new().await;
     axum::Router::new()
         .fallback(fallback)
         .route("/", get(hello))
         .route("/image", post(images))
         .route("/upload", post(query_image))
-        .with_state(sql)
+        .with_state(iqdb)
 }
 
 pub async fn shutdown_signal() {
@@ -62,15 +62,15 @@ async fn hello() -> &'static str {
     "hello, world!"
 }
 
-async fn images(State(sql): State<Sql>) -> (StatusCode, &'static str) {
+async fn images(State(iqdb): State<IQDB>) -> (StatusCode, &'static str) {
     (StatusCode::OK, "called images")
 }
 
 // Axum Route for ...
-async fn upload(State(sql): State<Sql>) {}
+async fn upload(State(sql): State<db::Sql>) {}
 
 // Handler
-async fn query_image(State(sql): State<Sql>, multipart: Multipart) -> Response {
+async fn query_image(State(iqdb): State<IQDB>, multipart: Multipart) -> Response {
     let res = match extract_image(multipart).await {
         Ok(img) => img,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -81,7 +81,7 @@ async fn query_image(State(sql): State<Sql>, multipart: Multipart) -> Response {
         .expect("Error while generating haar signature");
 
     // Insert into the db
-    sql.insert_signature(&sig).await;
+    //sql.insert_signature(&sig).await;
 
     // Give back the requester something to chew on
     Json(sig).into_response()
