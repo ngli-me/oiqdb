@@ -9,17 +9,18 @@ use image::{io::Reader, DynamicImage};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
-use crate::db::{self, Sql};
-use crate::signature;
+use crate::iqdb::{db, IQDB};
+use crate::{iqdb, signature};
+use crate::signature::HaarSignature;
 
 pub async fn router() -> axum::Router {
-    let sql = db::run_db().await;
+    let iqdb = iqdb::IQDB::new().await;
     axum::Router::new()
         .fallback(fallback)
         .route("/", get(hello))
         .route("/image", post(images))
         .route("/upload", post(query_image))
-        .with_state(sql)
+        .with_state(iqdb)
 }
 
 pub async fn shutdown_signal() {
@@ -30,7 +31,7 @@ pub async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-    let terminate = async {
+        let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -38,7 +39,7 @@ pub async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+        let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},
@@ -48,7 +49,7 @@ pub async fn shutdown_signal() {
 
 /// axum handler for any request that fails to match the router routes.
 /// this implementation returns http status code not found (404).
-async fn fallback(uri: axum::http::Uri) -> impl axum::response::IntoResponse {
+async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
     (
         axum::http::StatusCode::NOT_FOUND,
         format!("no route {}", uri),
@@ -61,34 +62,35 @@ async fn hello() -> &'static str {
     "hello, world!"
 }
 
-async fn images(State(sql): State<Sql>) -> (StatusCode, &'static str) {
+async fn images(State(iqdb): State<IQDB>) -> (StatusCode, &'static str) {
     (StatusCode::OK, "called images")
 }
 
 // Axum Route for ...
-async fn upload(State(sql): State<Sql>) {}
+async fn upload(State(sql): State<db::Sql>) {}
 
 // Handler
-async fn query_image(State(sql): State<Sql>, multipart: Multipart) -> Response {
+async fn query_image(State(iqdb): State<IQDB>, multipart: Multipart) -> Response {
     let res = match extract_image(multipart).await {
         Ok(img) => img,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
+    // Calculate the Haar Signature
+    let sig: HaarSignature = task::spawn_blocking(move || signature::HaarSignature::from(res))
+        .await
+        .expect("Error while generating haar signature");
 
-    Json(
-        // Calculate the Haar Signature
-        task::spawn_blocking(move || signature::HaarSignature::from(res))
-            .await
-            .expect("Error while generating haar signature"),
-    )
-    .into_response()
+    // Insert into the db
+    //sql.insert_signature(&sig).await;
+
+    // Give back the requester something to chew on
+    Json(sig).into_response()
 }
 
 async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> {
     while let Some(field) = multipart.next_field().await.unwrap() {
         //let name = field.name().unwrap().to_string();
         let raw_data = field.bytes().await.unwrap();
-
         let read_image = Reader::new(Cursor::new(raw_data))
             .with_guessed_format()
             .expect("Error while unwrapping image.");
@@ -103,45 +105,15 @@ async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyper_util::client::legacy::{connect, Client};
+    use axum_test::TestServer;
 
     #[tokio::test]
     async fn route_tests() {
-        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-        let addr = listener.local_addr().unwrap();
+        let server = TestServer::new(router().await).unwrap();
 
-        tokio::spawn(async move {
-            axum::serve(listener, router()).await.unwrap();
-        });
-        let client = Client::builder(hyper_util::rt::TokioExecutor::new()).build_http();
+        let response = server.get(&"/").await;
 
-        async fn check_response(
-            client: Client<connect::HttpConnector, axum_core::body::Body>,
-            addr: std::net::SocketAddr,
-            path: String,
-            body: axum::body::Body,
-            status: StatusCode,
-        ) {
-            let response = client
-                .request(
-                    axum::http::Request::builder()
-                        .uri(format!("http://{addr}{path}"))
-                        .header("Host", "localhost")
-                        .body(body)
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), status)
-        }
-
-        check_response(
-            client,
-            addr,
-            "".to_string(),
-            axum::body::Body::empty(),
-            StatusCode::OK,
-        )
-        .await;
+        response.assert_status_ok();
+        response.assert_text("hello, world!");
     }
 }

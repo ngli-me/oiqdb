@@ -1,5 +1,4 @@
-mod db;
-mod imgdb;
+mod iqdb;
 mod server;
 mod signature;
 

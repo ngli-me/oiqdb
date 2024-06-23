@@ -3,5 +3,7 @@ CREATE TABLE IF NOT EXISTS images (
         avglf1 REAL NOT NULL,
         avglf2 REAL NOT NULL,
         avglf3 REAL NOT NULL,
-        sig INTEGER NOT NULL
+        sig0 BLOB,
+        sig1 BLOB,
+        sig2 BLOB
 );

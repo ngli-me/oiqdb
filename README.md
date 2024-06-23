@@ -3,8 +3,8 @@
 IQDB is a reverse image search system. It lets you search a database of images to find images that are visually similar
 to a given image.
 
-This version of IQDB is a fork of the original IQDB used by https://iqdb.org, based on the (IQDB
-fork)[https://github.com/danbooru/iqdb/] used by Danbooru.
+This version of IQDB is a fork of the original IQDB used by https://iqdb.org, based on the [IQDB
+fork](https://github.com/danbooru/iqdb/) used by Danbooru.
 
 ## Reimplemented in Rust
 
