@@ -3,8 +3,10 @@ use dotenvy::dotenv;
 use sqlx::sqlite::SqliteQueryResult;
 use sqlx::SqlitePool;
 use std::env;
+use std::env::VarError;
 
 use crate::signature;
+use crate::signature::HaarSignature;
 
 #[derive(Clone)]
 pub struct Sql {
@@ -12,20 +14,33 @@ pub struct Sql {
 }
 
 impl Sql {
+    pub async fn new() -> Self {
+        match get_db_url().await {
+            Ok(url) => {
+                Sql {
+                    pool: initialize_and_connect_storage(url.as_str())
+                        .await
+                        .expect("Error while initializing and connecting to database"),
+                }
+            }
+            Err(err) => panic!("DB environment variable issue, {}", err)
+        }
+    }
+
     pub async fn insert_signature(
         &self,
         signature: &signature::HaarSignature,
     ) -> Result<i64> {
         let mut conn = self.pool.acquire().await?;
-        let blob0 = serde_json::to_string(&signature.sig0).unwrap();
-        let blob1 = serde_json::to_string(&signature.sig1).unwrap();
-        let blob2 = serde_json::to_string(&signature.sig2).unwrap();
+        let blob0 = serde_json::to_vec(&signature.sig0).unwrap();
+        let blob1 = serde_json::to_vec(&signature.sig1).unwrap();
+        let blob2 = serde_json::to_vec(&signature.sig2).unwrap();
         let id = sqlx::query!(
             r#"
-        INSERT INTO images ( avglf1, avglf2, avglf3, sig0, sig1, sig2 )
+        INSERT INTO images ( avglf0, avglf1, avglf2, sig0, sig1, sig2 )
         VALUES ( ($1), ($2), ($3), ($4), ($5), ($6))
         "#,
-            signature.avglf[0],
+            signature.avglf[0], // TODO: looks like some possible issues with this, REAL is f64
             signature.avglf[1],
             signature.avglf[2],
             blob0,
@@ -39,10 +54,23 @@ impl Sql {
         Ok(id)
     }
 
+    pub async fn get_one(&self) -> Result<HaarSignature> {
+        Ok(
+            sqlx::query_as(
+                r#"
+            SELECT avglf0, avglf1, avglf2, sig0, sig1, sig2
+            FROM images
+            "#,
+            )
+                .fetch_one(&self.pool)
+                .await?
+        )
+    }
+
     pub async fn list_rows(&self) -> Result<()> {
         let rows = sqlx::query!(
             r#"
-            SELECT id, avglf1, avglf2, avglf3
+            SELECT id, avglf0, avglf1, avglf2, sig0, sig1, sig2
             FROM images
             "#,
         )
@@ -50,13 +78,13 @@ impl Sql {
             .await?;
 
         for r in rows {
-            println!("- [{}]: {} {} {}", r.id, &r.avglf1, &r.avglf2, &r.avglf3, );
+            println!("- [{}]: {} {} {}", r.id, &r.avglf0, &r.avglf1, &r.avglf2, );
         }
 
         Ok(())
     }
 
-    pub async fn remove_image(&self, mut id: u32) -> Result<SqliteQueryResult> {
+    pub async fn remove_image(&self, mut id: i64) -> Result<SqliteQueryResult> {
         let mut conn = self.pool.acquire().await?;
         let res = sqlx::query!(
             r#"
@@ -72,17 +100,9 @@ impl Sql {
     }
 }
 
-pub async fn run_db() -> Sql {
-    Sql {
-        pool: initialize_and_connect_storage(get_db_url().await.unwrap().as_str())
-            .await
-            .expect("Error while initializing and connecting to database"),
-    }
-}
-
-async fn get_db_url() -> Result<String> {
+async fn get_db_url() -> Result<String, VarError> {
     dotenv().expect("Environment variable dotfile not found by dotenv.");
-    Ok(env::var("DATABASE_URL")?)
+    env::var("DATABASE_URL")
 }
 
 async fn initialize_and_connect_storage(url: &str) -> Result<SqlitePool> {
@@ -134,13 +154,13 @@ mod tests {
             sig2: haar::SigT { sig: [0; haar::NUM_COEFS] },
         };
 
-        let id: u32 = 555;
-
-        let _ = sql
+        let id = sql
             .insert_signature(&sig)
             .await
             .expect("Error while inserting signature.");
         println!("Added new entry with id {id}.");
+
+        let _ = sql.get_one().await;
 
         let _ = sql.list_rows().await.expect("Error while listing rows");
 
@@ -149,7 +169,7 @@ mod tests {
             .remove_image(id)
             .await
             .expect("Error while removing id: {id}");
-        println!("Running remove image");
+        println!("Running remove image for id: {id}");
 
         let _ = sql.list_rows().await.expect("Error while listing rows");
 
