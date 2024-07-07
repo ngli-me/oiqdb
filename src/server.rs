@@ -9,17 +9,18 @@ use image::{io::Reader, DynamicImage};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
-use crate::iqdb::{db, IQDB};
+use crate::iqdb::IQDB;
 use crate::{iqdb, signature};
 use crate::signature::HaarSignature;
 
 pub async fn router() -> axum::Router {
-    let iqdb = iqdb::IQDB::new().await;
+    let iqdb = IQDB::new().await;
     axum::Router::new()
         .fallback(fallback)
         .route("/", get(hello))
         .route("/image", post(images))
         .route("/upload", post(query_image))
+        .route("/each", get(each))
         .with_state(iqdb)
 }
 
@@ -67,7 +68,7 @@ async fn images(State(iqdb): State<IQDB>) -> (StatusCode, &'static str) {
 }
 
 // Axum Route for ...
-async fn upload(State(sql): State<db::Sql>) {}
+async fn upload(State(iqdb): State<IQDB>) {}
 
 // Handler
 async fn query_image(State(iqdb): State<IQDB>, multipart: Multipart) -> Response {
@@ -81,9 +82,8 @@ async fn query_image(State(iqdb): State<IQDB>, multipart: Multipart) -> Response
         .expect("Error while generating haar signature");
 
     // Insert into the db
-    //sql.insert_signature(&sig).await;
+    let id = iqdb.sql.insert_signature(&sig).await;
 
-    // Give back the requester something to chew on
     Json(sig).into_response()
 }
 
@@ -100,6 +100,11 @@ async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> 
             .expect("Error while decoding the image."));
     }
     Err(Error::new(ErrorKind::InvalidInput, "No input found"))
+}
+
+async fn each(State(iqdb): State<IQDB>) -> Response {
+    iqdb.sql.list_rows().await;
+    Json("finished running").into_response()
 }
 
 #[cfg(test)]

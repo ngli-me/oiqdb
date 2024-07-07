@@ -2,18 +2,18 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use crate::iqdb::imgdb::{ImgBin, ImgBinState};
 
-pub mod db;
+mod db;
 mod imgdb;
 
 #[derive(Clone)]
 pub struct IQDB {
-    state: ImgBinState,
-    sql: db::Sql,
+    pub state: ImgBinState,
+    pub sql: db::Sql,
 }
 
 impl IQDB {
     pub async fn new() -> Self {
-        let sql = db::run_db().await;
+        let sql = db::Sql::new().await;
         let state = ImgBinState { data: Arc::new(Mutex::new(ImgBin::new())) };
 
         /*

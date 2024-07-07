@@ -1,7 +1,7 @@
 use image::imageops::FilterType;
 use image::DynamicImage;
 use serde::Serialize;
-use sqlx::FromRow;
+use sqlx::{Error, FromRow, Row, sqlite::SqliteRow};
 use std::ops::Index;
 
 pub mod haar;
@@ -24,7 +24,7 @@ impl From<usize> for SigIndex {
 }
 
 
-#[derive(FromRow, Default, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct HaarSignature {
     pub avglf: haar::Lumin,
     pub sig0: haar::SigT,
@@ -54,7 +54,6 @@ impl HaarSignature {
         }
     }
 }
-
 
 impl Index<SigIndex> for HaarSignature {
     type Output = [i16; haar::NUM_COEFS];
@@ -91,23 +90,22 @@ impl From<DynamicImage> for HaarSignature {
     }
 }
 
+impl FromRow<'_, SqliteRow> for HaarSignature {
+    fn from_row(row: &'_ SqliteRow) -> sqlx::Result<Self, Error> {
+        Ok(
+            Self {
+                avglf: [row.try_get("avglf0")?, row.try_get("avglf1")?, row.try_get("avglf2")?],
+                sig0: serde_json::from_slice(row.try_get("sig0")?).unwrap(), // TODO: dont like the use of unwrap here
+                sig1: serde_json::from_slice(row.try_get("sig1")?).unwrap(),
+                sig2: serde_json::from_slice(row.try_get("sig2")?).unwrap(),
+            }
+        )
+    }
+}
+
 fn resize_image(img: DynamicImage) -> DynamicImage {
     img.resize_exact(128, 128, FilterType::Triangle)
 }
-
-//impl fmt::Display for HaarSignature {
-//    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-//        let mut str = "";
-//        for name in &self.names {
-//            fmt.write_str(str)?;
-//            fmt.write_str(name)?;
-//            str = ", ";
-//        }
-//        Ok(())
-//    }
-//}
-
-// to json
 
 #[cfg(test)]
 mod test {

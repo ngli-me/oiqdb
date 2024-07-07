@@ -16,7 +16,7 @@ pub const SCALING_FACTOR: f32 = 256.0 * 128.0;
 pub type Idx = i16;
 pub type Lumin = [f32; N_COLORS];
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SigT {
     #[serde(with = "BigArray")]
     pub sig: [i16; NUM_COEFS],
@@ -146,7 +146,6 @@ fn get_m_largest(mut cdata: Vec<f32>) -> [i16; NUM_COEFS] {
         *s = val.floor() as i16;
     }
     sig.sort();
-    println!("sig: {:?}", sig);
 
     sig
 }
