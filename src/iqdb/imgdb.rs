@@ -1,6 +1,6 @@
-use image::DynamicImage;
 use crate::signature::haar::{Idx, NUM_COEFS, NUM_PIXELS, NUM_PIXELS_SQUARED};
 use crate::signature::{haar, HaarSignature};
+use image::DynamicImage;
 use num_traits::abs;
 use std::borrow::Borrow;
 use std::cmp::{max, min};
@@ -81,18 +81,20 @@ impl ImgBin {
             i += 1;
         }
         Self {
-            bin: bin,
+            bin,
             buckets: vec![vec![vec![Vec::new(); N_INDEXES]; N_SIGNS]; haar::N_COLORS], // 3 * 2 * 16384 = 98304 total buckets
             info: Vec::new(),
         }
     }
 
     pub fn add(&mut self, sig: &HaarSignature, iqdb_id: u32) {
-        self.each_bucket(sig, |bucket: &mut Bucket| { bucket.push(iqdb_id) });
+        self.each_bucket(sig, |bucket: &mut Bucket| bucket.push(iqdb_id));
     }
 
     pub fn remove(&mut self, sig: &HaarSignature, iqdb_id: u32) {
-        self.each_bucket(sig, |bucket: &mut Bucket| { bucket.retain(|&x: &u32| x != iqdb_id) })
+        self.each_bucket(sig, |bucket: &mut Bucket| {
+            bucket.retain(|&x: &u32| x != iqdb_id)
+        })
     }
 
     fn at(&mut self, color: usize, coef: i16) -> &mut Bucket {
@@ -100,8 +102,10 @@ impl ImgBin {
         &mut self.buckets[color][sign as usize][abs(coef) as usize]
     }
 
-    fn each_bucket<F>(&mut self, sig: &HaarSignature, func: F) where
-        F: Fn(&mut Bucket) {
+    fn each_bucket<F>(&mut self, sig: &HaarSignature, func: F)
+        where
+            F: Fn(&mut Bucket),
+    {
         for c in 0..sig.num_colors() {
             for i in 0..NUM_COEFS {
                 let coef: i16 = sig[c][i];
@@ -175,8 +179,8 @@ impl ImgBin {
 
 #[cfg(test)]
 mod tests {
-    use crate::iqdb::imgdb::ImgBin;
     use super::*;
+    use crate::iqdb::imgdb::ImgBin;
 
     #[test]
     fn max_paths() {

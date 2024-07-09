@@ -1,10 +1,8 @@
-use bitvec::macros::internal::funty::Fundamental;
-use bitvec::view::AsBits;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
 use itertools::izip;
-use serde_big_array::BigArray;
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 use std::f32::consts::FRAC_1_SQRT_2;
 
 pub const N_COLORS: usize = 3; // 3 color channels (YIQ)
@@ -155,7 +153,11 @@ fn get_m_largest(mut cdata: Vec<f32>) -> [i16; NUM_COEFS] {
 // coordinates in sig1, sig2, and sig3. avgl are the [0,0] values.
 // The order of occurrence of the coordinates in sig doesn't matter.
 // Complexity is 3 x NUM_PIXELS^2 x 2log(NUM_COEFS).
-pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) -> (Lumin, SigT, SigT, SigT) {
+pub fn calc_haar(
+    cdata1: Vec<f32>,
+    cdata2: Vec<f32>,
+    cdata3: Vec<f32>,
+) -> (Lumin, SigT, SigT, SigT) {
     let avglf: [f32; N_COLORS] = [cdata1[0], cdata2[0], cdata3[0]];
 
     // Color channel 1
@@ -174,12 +176,7 @@ pub fn calc_haar(cdata1: Vec<f32>, cdata2: Vec<f32>, cdata3: Vec<f32>) -> (Lumin
         sig: get_m_largest(cdata2[1..].to_vec()),
     };
 
-    (
-        avglf,
-        sig1,
-        sig2,
-        sig3,
-    )
+    (avglf, sig1, sig2, sig3)
 }
 
 #[cfg(test)]
