@@ -1,7 +1,6 @@
 use image::imageops::FilterType;
 use image::DynamicImage;
 use serde::Serialize;
-use sqlx::{Error, FromRow, Row, sqlite::SqliteRow};
 use std::ops::Index;
 
 pub mod haar;
@@ -22,7 +21,6 @@ impl From<usize> for SigIndex {
         }
     }
 }
-
 
 #[derive(Debug, Default, Serialize)]
 pub struct HaarSignature {
@@ -85,21 +83,14 @@ impl From<DynamicImage> for HaarSignature {
         let filecontent = resize_image(filecontent);
         // Resize image and conver to YIQ
         let (a, b, c) = haar::transform_char(filecontent);
-        let (avglf, sig0, sig1, sig2): (haar::Lumin, haar::SigT, haar::SigT, haar::SigT) = haar::calc_haar(a, b, c);
-        HaarSignature { avglf, sig0, sig1, sig2 }
-    }
-}
-
-impl FromRow<'_, SqliteRow> for HaarSignature {
-    fn from_row(row: &'_ SqliteRow) -> sqlx::Result<Self, Error> {
-        Ok(
-            Self {
-                avglf: [row.try_get("avglf0")?, row.try_get("avglf1")?, row.try_get("avglf2")?],
-                sig0: serde_json::from_slice(row.try_get("sig0")?).unwrap(), // TODO: dont like the use of unwrap here
-                sig1: serde_json::from_slice(row.try_get("sig1")?).unwrap(),
-                sig2: serde_json::from_slice(row.try_get("sig2")?).unwrap(),
-            }
-        )
+        let (avglf, sig0, sig1, sig2): (haar::Lumin, haar::SigT, haar::SigT, haar::SigT) =
+            haar::calc_haar(a, b, c);
+        HaarSignature {
+            avglf,
+            sig0,
+            sig1,
+            sig2,
+        }
     }
 }
 

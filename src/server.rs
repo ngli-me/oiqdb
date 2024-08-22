@@ -1,6 +1,6 @@
 use axum::{
     extract::{Multipart, State},
-    http::StatusCode,
+    http::{StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json,
@@ -9,19 +9,16 @@ use image::{io::Reader, DynamicImage};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
-use crate::iqdb::IQDB;
-use crate::{iqdb, signature};
 use crate::signature::HaarSignature;
+use crate::{iqdb::IQDB, signature};
 
 pub async fn router() -> axum::Router {
     let iqdb = IQDB::new().await;
     axum::Router::new()
         .fallback(fallback)
         .route("/", get(hello))
-        .route("/image", post(images))
         .route("/upload", post(query_image))
-        .route("/each", get(each))
-        .with_state(iqdb)
+        .with_state(iqdb.unwrap())
 }
 
 pub async fn shutdown_signal() {
@@ -50,21 +47,14 @@ pub async fn shutdown_signal() {
 
 /// axum handler for any request that fails to match the router routes.
 /// this implementation returns http status code not found (404).
-async fn fallback(uri: axum::http::Uri) -> impl IntoResponse {
-    (
-        axum::http::StatusCode::NOT_FOUND,
-        format!("no route {}", uri),
-    )
+async fn fallback(uri: Uri) -> impl IntoResponse {
+    (StatusCode::NOT_FOUND, format!("no route {}", uri))
 }
 
 /// axum handler for "get /" which returns a string and causes axum to
 /// immediately respond with status code `200 ok` and with the string.
 async fn hello() -> &'static str {
     "hello, world!"
-}
-
-async fn images(State(iqdb): State<IQDB>) -> (StatusCode, &'static str) {
-    (StatusCode::OK, "called images")
 }
 
 // Axum Route for ...
@@ -80,7 +70,6 @@ async fn query_image(State(iqdb): State<IQDB>, multipart: Multipart) -> Response
     let sig: HaarSignature = task::spawn_blocking(move || signature::HaarSignature::from(res))
         .await
         .expect("Error while generating haar signature");
-
     // Insert into the db
     let id = iqdb.sql.insert_signature(&sig).await;
 
@@ -89,22 +78,15 @@ async fn query_image(State(iqdb): State<IQDB>, multipart: Multipart) -> Response
 
 async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> {
     while let Some(field) = multipart.next_field().await.unwrap() {
-        //let name = field.name().unwrap().to_string();
         let raw_data = field.bytes().await.unwrap();
         let read_image = Reader::new(Cursor::new(raw_data))
             .with_guessed_format()
             .expect("Error while unwrapping image.");
-        //ret = format!("Length of `{}` is {} bytes, with format {:?}", name, data_leng, img.format());
         return Ok(read_image
             .decode()
             .expect("Error while decoding the image."));
     }
     Err(Error::new(ErrorKind::InvalidInput, "No input found"))
-}
-
-async fn each(State(iqdb): State<IQDB>) -> Response {
-    iqdb.sql.list_rows().await;
-    Json("finished running").into_response()
 }
 
 #[cfg(test)]

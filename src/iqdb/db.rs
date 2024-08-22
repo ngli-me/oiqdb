@@ -1,9 +1,11 @@
 use anyhow::Result;
 use dotenvy::dotenv;
-use sqlx::sqlite::SqliteQueryResult;
-use sqlx::SqlitePool;
+use futures::stream::BoxStream;
+use sqlx::sqlite::{SqliteQueryResult, SqliteRow};
+use sqlx::{Error, FromRow, Row, SqlitePool};
 use std::env;
 use std::env::VarError;
+use futures::{Stream, TryStreamExt};
 
 use crate::signature;
 use crate::signature::HaarSignature;
@@ -13,24 +15,42 @@ pub struct Sql {
     pool: SqlitePool,
 }
 
+pub struct SqlRow {
+    pub id: i32,
+    pub s: HaarSignature,
+}
+
+impl FromRow<'_, SqliteRow> for SqlRow {
+    fn from_row(row: &'_ SqliteRow) -> sqlx::Result<Self, Error> {
+        Ok(Self {
+            id: row.try_get("id").unwrap(),
+            s: HaarSignature {
+                avglf: [
+                    row.try_get("avglf0")?,
+                    row.try_get("avglf1")?,
+                    row.try_get("avglf2")?,
+                ],
+                sig0: serde_json::from_slice(row.try_get("sig0")?).unwrap(), // TODO: dont like the use of unwrap here
+                sig1: serde_json::from_slice(row.try_get("sig1")?).unwrap(),
+                sig2: serde_json::from_slice(row.try_get("sig2")?).unwrap(),
+            },
+        })
+    }
+}
+
 impl Sql {
     pub async fn new() -> Self {
         match get_db_url().await {
-            Ok(url) => {
-                Sql {
-                    pool: initialize_and_connect_storage(url.as_str())
-                        .await
-                        .expect("Error while initializing and connecting to database"),
-                }
-            }
-            Err(err) => panic!("DB environment variable issue, {}", err)
+            Ok(url) => Sql {
+                pool: initialize_and_connect_storage(url.as_str())
+                    .await
+                    .expect("Error while initializing and connecting to database"),
+            },
+            Err(err) => panic!("DB environment variable issue, {}", err),
         }
     }
 
-    pub async fn insert_signature(
-        &self,
-        signature: &signature::HaarSignature,
-    ) -> Result<i64> {
+    pub async fn insert_signature(&self, signature: &HaarSignature) -> Result<i64> {
         let mut conn = self.pool.acquire().await?;
         let blob0 = serde_json::to_vec(&signature.sig0).unwrap();
         let blob1 = serde_json::to_vec(&signature.sig1).unwrap();
@@ -54,17 +74,15 @@ impl Sql {
         Ok(id)
     }
 
-    pub async fn get_one(&self) -> Result<HaarSignature> {
-        Ok(
-            sqlx::query_as(
-                r#"
-            SELECT avglf0, avglf1, avglf2, sig0, sig1, sig2
+    pub async fn get_one(&self) -> Result<SqlRow> {
+        Ok(sqlx::query_as(
+            r#"
+            SELECT id, avglf0, avglf1, avglf2, sig0, sig1, sig2
             FROM images
             "#,
-            )
-                .fetch_one(&self.pool)
-                .await?
         )
+            .fetch_one(&self.pool)
+            .await?)
     }
 
     pub async fn list_rows(&self) -> Result<()> {
@@ -72,6 +90,7 @@ impl Sql {
             r#"
             SELECT id, avglf0, avglf1, avglf2, sig0, sig1, sig2
             FROM images
+            ORDER BY id ASC
             "#,
         )
             .fetch_all(&self.pool)
@@ -84,7 +103,17 @@ impl Sql {
         Ok(())
     }
 
-    pub async fn remove_image(&self, mut id: i64) -> Result<SqliteQueryResult> {
+    pub fn each_image(&self) -> BoxStream<sqlx::Result<SqlRow>> {
+        sqlx::query_as(
+            r#"
+            SELECT id, avglf0, avglf1, avglf2, sig0, sig1, sig2
+            FROM images
+            ORDER BY id ASC
+            "#,
+        ).fetch(&self.pool)
+    }
+
+    pub async fn remove_image(&self, id: i64) -> Result<SqliteQueryResult> {
         let mut conn = self.pool.acquire().await?;
         let res = sqlx::query!(
             r#"
@@ -136,7 +165,7 @@ mod tests {
         };
 
         // Get the filepath for the db from the environment variable
-        let re = Regex::new(r"(?:sqlite:\/\/)?(.+)").unwrap();
+        let re = Regex::new(r"(?:sqlite://)?(.+)").unwrap();
         let Some(caps) = re.captures(&url) else {
             return;
         };
@@ -149,9 +178,15 @@ mod tests {
         let sig = signature::HaarSignature {
             // Create a blank haar signature to insert
             avglf: [0.0, 0.0, 0.0],
-            sig0: haar::SigT { sig: [0; haar::NUM_COEFS] },
-            sig1: haar::SigT { sig: [0; haar::NUM_COEFS] },
-            sig2: haar::SigT { sig: [0; haar::NUM_COEFS] },
+            sig0: haar::SigT {
+                sig: [0; haar::NUM_COEFS],
+            },
+            sig1: haar::SigT {
+                sig: [0; haar::NUM_COEFS],
+            },
+            sig2: haar::SigT {
+                sig: [0; haar::NUM_COEFS],
+            },
         };
 
         let id = sql
@@ -159,18 +194,14 @@ mod tests {
             .await
             .expect("Error while inserting signature.");
         println!("Added new entry with id {id}.");
-
-        let _ = sql.get_one().await;
-
         let _ = sql.list_rows().await.expect("Error while listing rows");
 
         // Remove image
+        println!("Running remove image for id: {id}");
         let _ = sql
             .remove_image(id)
             .await
             .expect("Error while removing id: {id}");
-        println!("Running remove image for id: {id}");
-
         let _ = sql.list_rows().await.expect("Error while listing rows");
 
         sql.pool.close().await;
