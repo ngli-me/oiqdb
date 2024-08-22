@@ -1,6 +1,6 @@
 # Tests for SQLx Integration
 
-For testing this module, we're only using a single test function, since otherwise
+For this module, we're only using a single test function, since otherwise
 we'll have to handle multiple possible databases, in an asynchronous environment.
 Having a single database makes this a lot simpler.
 

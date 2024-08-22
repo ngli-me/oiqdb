@@ -5,7 +5,7 @@ use sqlx::sqlite::{SqliteQueryResult, SqliteRow};
 use sqlx::{Error, FromRow, Row, SqlitePool};
 use std::env;
 use std::env::VarError;
-use futures::{Stream, TryStreamExt};
+use futures::{FutureExt, Stream, TryStreamExt};
 
 use crate::signature;
 use crate::signature::HaarSignature;
@@ -74,15 +74,17 @@ impl Sql {
         Ok(id)
     }
 
-    pub async fn get_one(&self) -> Result<SqlRow> {
-        Ok(sqlx::query_as(
+    pub async fn get_image(&self, id: i64) -> Option<SqlRow> {
+        sqlx::query_as(
             r#"
             SELECT id, avglf0, avglf1, avglf2, sig0, sig1, sig2
             FROM images
+            WHERE id = (?)
             "#,
         )
-            .fetch_one(&self.pool)
-            .await?)
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await.unwrap_or(None)
     }
 
     pub async fn list_rows(&self) -> Result<()> {
@@ -195,6 +197,9 @@ mod tests {
             .expect("Error while inserting signature.");
         println!("Added new entry with id {id}.");
         let _ = sql.list_rows().await.expect("Error while listing rows");
+
+        let img = sql.get_image(id).await.unwrap();
+        println!("For id: {id}, the SqlRow's HaarSignature is: {:?}", img.s);
 
         // Remove image
         println!("Running remove image for id: {id}");
