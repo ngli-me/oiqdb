@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json,
 };
-use image::{ImageReader, DynamicImage};
+use image::{DynamicImage, ImageReader};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 

@@ -15,7 +15,7 @@ pub struct Sql {
 }
 
 pub struct SqlRow {
-    pub id: i32,
+    pub id: u32,
     pub s: HaarSignature,
 }
 
@@ -76,7 +76,7 @@ impl Sql {
         }
     }
 
-    pub async fn get_image(&self, id: i64) -> Option<SqlRow> {
+    pub async fn get_image(&self, id: u32) -> Option<SqlRow> {
         sqlx::query_as(
             r#"
             SELECT id, avglf0, avglf1, avglf2, sig0, sig1, sig2
@@ -119,7 +119,7 @@ impl Sql {
         .fetch(&self.pool)
     }
 
-    pub async fn remove_image(&self, id: i64) -> Result<SqliteQueryResult, Error> {
+    pub async fn remove_image(&self, id: u32) -> Result<SqliteQueryResult, Error> {
         let mut conn = self.pool.acquire().await?;
         sqlx::query!(
             r#"
@@ -205,13 +205,13 @@ mod tests {
         println!("Added new entry with id {id}.");
         let _ = sql.list_rows().await.expect("Error while listing rows");
 
-        let img = sql.get_image(id).await.unwrap();
+        let img = sql.get_image(id as u32).await.unwrap();
         println!("For id: {id}, the SqlRow's HaarSignature is: {:?}", img.s);
 
         // Remove image
         println!("Running remove image for id: {id}");
         let _ = sql
-            .remove_image(id)
+            .remove_image(id as u32)
             .await
             .expect("Error while removing id: {id}");
         let _ = sql.list_rows().await.expect("Error while listing rows");

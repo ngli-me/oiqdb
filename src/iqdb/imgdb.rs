@@ -8,9 +8,9 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-type ImageId = i32;
-type IqdbId = usize; // An internal IQDB image ID.
-type PostId = i32; // An external (booru) post ID.
+pub type ImageId = u32;
+pub type IqdbId = u32; // An internal IQDB image ID.
+pub type PostId = u32; // An external (booru) post ID.
 type Score = f32;
 type SimVector = Vec<SimValue>;
 type Sig = [Idx; NUM_COEFS];
@@ -91,6 +91,14 @@ impl ImgBin {
         self.each_bucket(sig, |bucket: &mut Bucket| bucket.push(iqdb_id));
     }
 
+    /// Removes a signature from the buckets and from the info vector.
+    ///
+    /// Serves as a helper function for crate::iqdb::IQDB, since this sort of memory access is easier in C/C++.
+    pub fn remove_image(&mut self, sig: &HaarSignature, iqdb_id: u32) {
+        self.remove(sig, iqdb_id);
+        self.info[iqdb_id as usize].avgl.v[0] = 0.0;
+    }
+
     pub fn remove(&mut self, sig: &HaarSignature, iqdb_id: u32) {
         self.each_bucket(sig, |bucket: &mut Bucket| {
             bucket.retain(|&x: &u32| x != iqdb_id)
@@ -122,7 +130,7 @@ impl ImgBin {
     // addImageInMemory
 
     fn is_deleted(&self, iqdb_id: IqdbId) -> bool {
-        return self.info[iqdb_id].avgl.v[0] == 0.0;
+        return self.info[iqdb_id as usize].avgl.v[0] == 0.0;
     }
 
     fn query_from_blob(&self, image: DynamicImage, limit: i32) {
@@ -170,10 +178,6 @@ impl ImgBin {
             if !self.is_deleted(i) {}
             i += 1;
         }
-    }*/
-
-    /*fn remove_image(&self, image_id: ImageId) {
-        let image =
     }*/
 }
 
