@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["multipart"] }
 axum-core = "0.4.3"
 axum-test = "15.2.0"

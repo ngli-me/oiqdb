@@ -1,7 +1,7 @@
 use crate::iqdb::imgdb::{ImgBin, ImgBinState};
-use std::sync::Arc;
 use futures::TryStreamExt;
 use sqlx::Row;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 mod db;

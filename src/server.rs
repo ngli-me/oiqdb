@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json,
 };
-use image::{io::Reader, DynamicImage};
+use image::{ImageReader, DynamicImage};
 use std::io::{Cursor, Error, ErrorKind};
 use tokio::{signal, task};
 
@@ -29,7 +29,7 @@ pub async fn shutdown_signal() {
     };
 
     #[cfg(unix)]
-        let terminate = async {
+    let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -37,7 +37,7 @@ pub async fn shutdown_signal() {
     };
 
     #[cfg(not(unix))]
-        let terminate = std::future::pending::<()>();
+    let terminate = std::future::pending::<()>();
 
     tokio::select! {
         _ = ctrl_c => {},
@@ -79,7 +79,7 @@ async fn query_image(State(iqdb): State<IQDB>, multipart: Multipart) -> Response
 async fn extract_image(mut multipart: Multipart) -> Result<DynamicImage, Error> {
     while let Some(field) = multipart.next_field().await.unwrap() {
         let raw_data = field.bytes().await.unwrap();
-        let read_image = Reader::new(Cursor::new(raw_data))
+        let read_image = ImageReader::new(Cursor::new(raw_data))
             .with_guessed_format()
             .expect("Error while unwrapping image.");
         return Ok(read_image

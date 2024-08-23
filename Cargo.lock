@@ -1495,7 +1495,6 @@ dependencies = [
 name = "oiqdb"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "axum",
  "axum-core",
  "axum-test",

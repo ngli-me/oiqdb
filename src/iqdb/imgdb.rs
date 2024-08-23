@@ -103,8 +103,8 @@ impl ImgBin {
     }
 
     fn each_bucket<F>(&mut self, sig: &HaarSignature, func: F)
-        where
-            F: Fn(&mut Bucket),
+    where
+        F: Fn(&mut Bucket),
     {
         for c in 0..sig.num_colors() {
             for i in 0..NUM_COEFS {

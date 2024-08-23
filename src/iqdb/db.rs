@@ -1,11 +1,10 @@
-use anyhow::Result;
 use dotenvy::dotenv;
 use futures::stream::BoxStream;
+use futures::{FutureExt, Stream, TryStreamExt};
 use sqlx::sqlite::{SqliteQueryResult, SqliteRow};
 use sqlx::{Error, FromRow, Row, SqlitePool};
 use std::env;
 use std::env::VarError;
-use futures::{FutureExt, Stream, TryStreamExt};
 
 use crate::signature;
 use crate::signature::HaarSignature;
@@ -50,28 +49,31 @@ impl Sql {
         }
     }
 
-    pub async fn insert_signature(&self, signature: &HaarSignature) -> Result<i64> {
-        let mut conn = self.pool.acquire().await?;
-        let blob0 = serde_json::to_vec(&signature.sig0).unwrap();
-        let blob1 = serde_json::to_vec(&signature.sig1).unwrap();
-        let blob2 = serde_json::to_vec(&signature.sig2).unwrap();
-        let id = sqlx::query!(
-            r#"
-        INSERT INTO images ( avglf0, avglf1, avglf2, sig0, sig1, sig2 )
-        VALUES ( ($1), ($2), ($3), ($4), ($5), ($6))
-        "#,
-            signature.avglf[0], // TODO: looks like some possible issues with this, REAL is f64
-            signature.avglf[1],
-            signature.avglf[2],
-            blob0,
-            blob1,
-            blob2
-        )
-            .execute(&mut *conn)
-            .await?
-            .last_insert_rowid();
+    pub async fn insert_signature(&self, signature: &HaarSignature) -> Option<i64> {
+        match self.pool.acquire().await {
+            Ok(mut conn) => {
+                let blob0 = serde_json::to_vec(&signature.sig0).unwrap();
+                let blob1 = serde_json::to_vec(&signature.sig1).unwrap();
+                let blob2 = serde_json::to_vec(&signature.sig2).unwrap();
 
-        Ok(id)
+                sqlx::query!(
+                    r#"
+                INSERT INTO images ( avglf0, avglf1, avglf2, sig0, sig1, sig2 )
+                VALUES ( ($1), ($2), ($3), ($4), ($5), ($6))
+                "#,
+                    signature.avglf[0], // TODO: looks like some possible issues with this, REAL is f64
+                    signature.avglf[1],
+                    signature.avglf[2],
+                    blob0,
+                    blob1,
+                    blob2
+                )
+                .execute(&mut *conn)
+                .await
+                .map_or(None, |query_result| Some(query_result.last_insert_rowid()))
+            }
+            Err(_) => None,
+        }
     }
 
     pub async fn get_image(&self, id: i64) -> Option<SqlRow> {
@@ -82,27 +84,28 @@ impl Sql {
             WHERE id = (?)
             "#,
         )
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await.unwrap_or(None)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap_or(None)
     }
 
-    pub async fn list_rows(&self) -> Result<()> {
-        let rows = sqlx::query!(
+    pub async fn list_rows(&self) -> Option<i64> {
+        sqlx::query!(
             r#"
             SELECT id, avglf0, avglf1, avglf2, sig0, sig1, sig2
             FROM images
             ORDER BY id ASC
             "#,
         )
-            .fetch_all(&self.pool)
-            .await?;
-
-        for r in rows {
-            println!("- [{}]: {} {} {}", r.id, &r.avglf0, &r.avglf1, &r.avglf2, );
-        }
-
-        Ok(())
+        .fetch_all(&self.pool)
+        .await
+        .map_or(None, |rows| {
+            for r in rows {
+                println!("- [{}]: {} {} {}", r.id, &r.avglf0, &r.avglf1, &r.avglf2,);
+            }
+            Some(1)
+        })
     }
 
     pub fn each_image(&self) -> BoxStream<sqlx::Result<SqlRow>> {
@@ -112,22 +115,21 @@ impl Sql {
             FROM images
             ORDER BY id ASC
             "#,
-        ).fetch(&self.pool)
+        )
+        .fetch(&self.pool)
     }
 
-    pub async fn remove_image(&self, id: i64) -> Result<SqliteQueryResult> {
+    pub async fn remove_image(&self, id: i64) -> Result<SqliteQueryResult, Error> {
         let mut conn = self.pool.acquire().await?;
-        let res = sqlx::query!(
+        sqlx::query!(
             r#"
             DELETE FROM images
             WHERE id = ($1)
             "#,
             id
         )
-            .execute(&mut *conn)
-            .await?;
-
-        Ok(res)
+        .execute(&mut *conn)
+        .await
     }
 }
 
@@ -136,10 +138,18 @@ async fn get_db_url() -> Result<String, VarError> {
     env::var("DATABASE_URL")
 }
 
-async fn initialize_and_connect_storage(url: &str) -> Result<SqlitePool> {
-    let conn = SqlitePool::connect(url).await?;
-    sqlx::migrate!().run(&conn).await?;
-    Ok(conn)
+async fn initialize_and_connect_storage(url: &str) -> Option<SqlitePool> {
+    match SqlitePool::connect(url).await {
+        Ok(pool) => run_migrations(pool).await,
+        Err(_) => None,
+    }
+}
+
+async fn run_migrations(pool: SqlitePool) -> Option<SqlitePool> {
+    match sqlx::migrate!().run(&pool).await {
+        Ok(_) => Some(pool),
+        Err(_) => None,
+    }
 }
 
 #[cfg(test)]
@@ -147,10 +157,7 @@ mod tests {
     use super::*;
     use crate::signature::haar;
     use regex::Regex;
-    use std::fs;
     use std::path::Path;
-
-    static TMP_FILES: [&str; 2] = ["shm", "wal"];
 
     #[tokio::test]
     #[doc = include_str!("../../doc/db/test.md")]
@@ -210,15 +217,5 @@ mod tests {
         let _ = sql.list_rows().await.expect("Error while listing rows");
 
         sql.pool.close().await;
-
-        // Cleanup tmp sqlite db files
-        for suffix in TMP_FILES {
-            let name = format!("{url}-{suffix}");
-            let tmp = Path::new(name.as_str());
-            if tmp.exists() {
-                println!("Removing tmp file: {:?}", tmp);
-                fs::remove_file(tmp).unwrap();
-            }
-        }
     }
 }
