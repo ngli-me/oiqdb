@@ -3,6 +3,7 @@ use futures::TryStreamExt;
 use sqlx::Row;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use crate::signature::HaarSignature;
 
 mod db;
 mod imgdb;
@@ -14,6 +15,7 @@ pub struct IQDB {
 }
 
 impl IQDB {
+    // this is load database lel
     pub async fn new() -> sqlx::Result<Self, sqlx::Error> {
         let sql = db::Sql::new().await;
         let state = ImgBinState {
@@ -24,16 +26,11 @@ impl IQDB {
         let mut sql_rows = sql_clone.each_image();
         while let Some(r) = sql_rows.try_next().await? {
             println!("the sqlite row was gotten: {}", r.id);
+            state.data.clone().lock().await.add_image_in_memory(r.id, r.id, &r.s);
+            if r.id % 250000 == 0 {
+                println!("loaded a bunch of images");
+            }
         }
-        /*
-        sqlite_db_->eachImage([&](const auto& image) {
-        addImageInMemory(image.id, image.post_id, image.haar());
-        if (image.id % 250000 == 0) {
-          INFO("Loaded image {} (post #{})...\n", image.id, image.post_id);
-        }
-        });
-        INFO("Loaded {} images from {}.\n", getImgCount(), filename);
-        */
 
         Ok(IQDB {
             state: state,
@@ -41,9 +38,18 @@ impl IQDB {
         })
     }
 
-    /*pub async fn add_image(&self, post_id: imgdb::ImageId) {
-        self.remove_image()
-    }*/
+    pub async fn add_image(&self, haar: &HaarSignature) -> Option<u32> {
+        match self.sql.insert_signature(haar).await {
+            Some(id) => {
+                self.state
+                    .data
+                    .clone()
+                    .lock()
+                    .await.add_image_in_memory(id as imgdb::IqdbId, id as imgdb::PostId, haar)
+            }
+            None => None,
+        }
+    }
 
     pub async fn remove_image(&self, post_id: imgdb::PostId) -> Option<imgdb::PostId> {
         let image = self.sql.get_image(post_id).await;
@@ -52,15 +58,12 @@ impl IQDB {
             return None;
         }
         let image = image.unwrap();
-        // TODO: https://itsallaboutthebit.com/arc-mutex/ Might be able to use Mutex without Arc
         self.state
             .data
             .clone()
             .lock()
             .await
             .remove_image(&image.s, image.id);
-        self.sql.remove_image(post_id).await;
-
-        return Some(post_id);
+        self.sql.remove_image(post_id).await.map_or(None, |_| Some(post_id))
     }
 }

@@ -3,8 +3,9 @@ use crate::signature::{haar, HaarSignature};
 use image::DynamicImage;
 use num_traits::abs;
 use std::borrow::Borrow;
-use std::cmp::{max, min};
+use std::cmp::{max, min, Ordering};
 use std::collections::BinaryHeap;
+use std::default::Default;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -31,6 +32,7 @@ pub const WEIGHTS: [&[f32; 3]; 6] = [
     &[0.30, 00.14, 00.27], // 5    0.71      16384-25=16359
 ];
 
+#[derive(Default)]
 struct ImageInfo {
     id: ImageId,
     avgl: LuminNative,
@@ -40,9 +42,36 @@ struct LuminNative {
     pub v: [Score; 3],
 }
 
+impl Default for LuminNative {
+    fn default() -> Self {
+        LuminNative { v: [0.0, 0.0, 0.0] }
+    }
+}
+
 struct SimValue {
     pub id: ImageId,
     pub score: Score,
+}
+
+impl Eq for SimValue {}
+
+impl Ord for SimValue {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // return score < other.score
+        self.score.partial_cmp(&other.score).unwrap()
+    }
+}
+
+impl PartialOrd for SimValue {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.score.partial_cmp(&other.score)
+    }
+}
+
+impl PartialEq for SimValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.score == other.score
+    }
 }
 
 #[derive(Clone)]
@@ -123,11 +152,21 @@ impl ImgBin {
         }
     }
 
-    /*fn add_image(&mut self, post_id: PostId, signature: &HaarSignature) {
-        self.remove_image(post_id);
-    }*/
-
-    // addImageInMemory
+    pub fn add_image_in_memory(&mut self, iqdb_id: IqdbId, post_id: PostId, haar: &HaarSignature) -> Option<IqdbId> {
+        if iqdb_id >= self.info.len() as u32 {
+            // Growing info vec
+            let resize = (iqdb_id + 5000) as usize;
+            self.info.resize_with(resize, Default::default)
+        }
+        self.add(haar, iqdb_id);
+        self.info[iqdb_id as usize] = ImageInfo {
+            id: post_id,
+            avgl: LuminNative {
+                v: haar.avglf,
+            },
+        };
+        Some(iqdb_id)
+    }
 
     fn is_deleted(&self, iqdb_id: IqdbId) -> bool {
         return self.info[iqdb_id as usize].avgl.v[0] == 0.0;
@@ -137,11 +176,8 @@ impl ImgBin {
         let signature: HaarSignature = HaarSignature::from(image);
     }
 
-    /*fn query_from_signature(&mut self, signature: &HaarSignature, num_res: usize) {
-        // results priority queue; largest at top
-        let v: SimVector = Vec::new();
-
-        let scores: Vec<Score> = vec![0.0; self.info.len()];
+    fn query_from_signature(&mut self, signature: &HaarSignature, num_res: usize) {
+        let mut scores: Vec<Score> = vec![0.0; self.info.len()];
         // Luminance score (DC coefficient)
         for i in 0..scores.len() {
             let image_info: &ImageInfo = &self.info[i];
@@ -158,15 +194,15 @@ impl ImgBin {
         for c in 0..signature.num_colors() {
             for b in 0..NUM_COEFS { // for every coef on a sig
                 let coef: i16 = signature[c][b];
+                let w: usize = self.bin[abs(coef) as usize].clone(); // we need to clone the usize to release it here
                 let bucket: &mut Bucket = self.at(c, coef);
                 if bucket.is_empty() {
                     continue;
                 }
-                let w: usize = self.bin[abs(coef)];
                 let weight: Score = WEIGHTS[w][c];
                 scale -= weight;
                 for index in bucket.iter() {
-                    scores[index] -= weight;
+                    scores[*index as usize] -= weight;
                 }
             }
         }
@@ -174,11 +210,11 @@ impl ImgBin {
         // Fill up the numres-bounded priority queue (largest at top):
         let mut i: IqdbId = 0;
         let pq_results: BinaryHeap<SimValue> = BinaryHeap::new();
-        while (pq_results.len() < num_res) && (i < scores.len()) {
+        while (pq_results.len() < num_res) && (i < scores.len() as u32) {
             if !self.is_deleted(i) {}
             i += 1;
         }
-    }*/
+    }
 }
 
 #[cfg(test)]
